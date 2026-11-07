@@ -26,8 +26,10 @@ function contenido(pagina) {
 
 // opciones: { tamano: "a4" | "carta", margen: puntos, orientacion: "auto" | "vertical" }
 export function ajustarPaginas(mupdf, doc, opciones) {
+  // tamano "original": cada página conserva su tamaño (solo se agregan márgenes o se endereza)
+  const original = opciones.tamano === "original";
   const [A, B] = TAMANOS[opciones.tamano] || TAMANOS.a4;
-  const m = Math.max(0, opciones.margen || 0);
+  const m = Math.max(0, Math.min(opciones.margen || 0, 5 * 28.3465));
   // las anotaciones se fijan al contenido para que no se pierdan al rearmar las páginas
   doc.bake(true, true);
   const n = doc.countPages();
@@ -39,14 +41,24 @@ export function ajustarPaginas(mupdf, doc, opciones) {
     const x0 = Math.max(cb[0], mb[0]), y0 = Math.max(cb[1], mb[1]);
     const x1 = Math.min(cb[2], mb[2]), y1 = Math.min(cb[3], mb[3]);
     const rotObj = obj.getInheritable("Rotate");
-    const r = (((rotObj && rotObj.isNumber() ? rotObj.asNumber() : 0) % 360) + 360) % 360;
+    let r = (((rotObj && rotObj.isNumber() ? rotObj.asNumber() : 0) % 360) + 360) % 360;
     const w = x1 - x0, h = y1 - y0;
-    const dw = r === 90 || r === 270 ? h : w;
-    const dh = r === 90 || r === 270 ? w : h;
+    let dw = r === 90 || r === 270 ? h : w;
+    let dh = r === 90 || r === 270 ? w : h;
+    let girada = false;
+    if (original && opciones.orientacion === "vertical" && dw > dh * 1.02) {
+      // sin cambiar el tamaño: la página acostada se gira para quedar parada (sin perder calidad)
+      r = (r + 90) % 360;
+      obj.put("Rotate", r);
+      [dw, dh] = [dh, dw];
+      girada = true;
+    }
+    if (original && m === 0) { if (girada) cambiadas++; continue; }
     const apaisada = opciones.orientacion !== "vertical" && dw > dh * 1.02;
-    const W = apaisada ? B : A, H = apaisada ? A : B;
+    const W = original ? dw + 2 * m : apaisada ? B : A;
+    const H = original ? dh + 2 * m : apaisada ? A : B;
     // ya tiene el tamaño buscado y no hay que agregar margen: se deja igual
-    if (m === 0 && r === 0 && Math.abs(dw - W) < 1.5 && Math.abs(dh - H) < 1.5) continue;
+    if (!original && m === 0 && r === 0 && Math.abs(dw - W) < 1.5 && Math.abs(dh - H) < 1.5) continue;
     const s = Math.min((W - 2 * m) / dw, (H - 2 * m) / dh);
     const tx = (W - dw * s) / 2, ty = (H - dh * s) / 2;
     let mat;

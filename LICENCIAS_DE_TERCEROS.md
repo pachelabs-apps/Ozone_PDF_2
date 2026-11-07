@@ -25,6 +25,7 @@ Notas: Apache-2.0 y MPL-2.0 son compatibles con AGPL-3.0. Las que ofrecen varias
 | `@tauri-apps/api@2.12.4` | Apache-2.0 OR MIT |
 | `@tauri-apps/plugin-dialog@2.8.4` | MIT OR Apache-2.0 |
 | `@tauri-apps/plugin-fs@2.7.1` | MIT OR Apache-2.0 |
+| `@tauri-apps/plugin-opener@2.7.2` | MIT OR Apache-2.0 |
 | `@types/react@19.3.0` | MIT |
 | `csstype@3.2.3` | MIT |
 | `lucide-react@1.70.0` | ISC |
@@ -338,6 +339,7 @@ Notas: Apache-2.0 y MPL-2.0 son compatibles con AGPL-3.0. Las que ofrecen varias
 | `tauri-macros` | 2.7.4 | Apache-2.0 OR MIT |
 | `tauri-plugin` | 2.7.2 | Apache-2.0 OR MIT |
 | `tauri-plugin-dialog` | 2.8.4 | Apache-2.0 OR MIT |
+| `tauri-plugin-opener` | 2.7.2 | Apache-2.0 OR MIT |
 | `tauri-plugin-fs` | 2.7.1 | Apache-2.0 OR MIT |
 | `tauri-runtime` | 2.12.2 | Apache-2.0 OR MIT |
 | `tauri-runtime-wry` | 2.12.3 | Apache-2.0 OR MIT |

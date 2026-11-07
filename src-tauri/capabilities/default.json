@@ -2,12 +2,47 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permisos mínimos: abrir y guardar los PDF que elige la persona. Sin red.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    { "identifier": "fs:allow-read-file", "allow": [{ "path": "**" }] },
-    { "identifier": "fs:allow-write-file", "allow": [{ "path": "**" }] }
+    "dialog:allow-ask",
+    "dialog:allow-message",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://cafecito.app/*"
+        },
+        {
+          "url": "https://pachelabs.net/*"
+        },
+        {
+          "url": "https://pachelabs.net"
+        },
+        {
+          "url": "https://github.com/pachelabs-apps/*"
+        }
+      ]
+    }
   ]
 }

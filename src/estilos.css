@@ -753,3 +753,77 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
 .app:not(.con-doc) .labcin-app__globo { margin: 0 0 6px; max-width: 340px; }
 .labcin-app__acciones button { white-space: nowrap; }
 .voz-info .enlace { border: 0; background: none; padding: 0; color: var(--rojo); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+.modal__caja--seguridad { width: min(540px, 100%); }
+.modal__caja--seguridad h2 svg { vertical-align: -4px; color: var(--rojo); }
+
+/* menú Páginas en la barra del editor */
+.herramientas__paginas { position: relative; display: flex; padding-left: 8px; margin-left: 4px; border-left: 1px solid var(--borde); }
+.herr__flecha { vertical-align: 0; margin-left: 1px; }
+.menu-capa { position: fixed; inset: 0; z-index: 30; }
+.menu-paginas {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 31; width: 300px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--borde); border-radius: 16px; box-shadow: 0 24px 50px -18px rgba(0, 0, 0, .4);
+  animation: modal-entra .22s var(--rebote);
+}
+.menu-paginas__item {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 10px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--tinta); text-align: left; cursor: pointer;
+}
+.menu-paginas__item:hover, .menu-paginas__item:focus-visible { background: var(--rojo-claro); }
+.menu-paginas__item .tarjeta__icono { margin: 0; width: 36px; height: 36px; flex: none; }
+.menu-paginas__item strong { display: block; font-size: .95rem; }
+.menu-paginas__item small { display: block; color: var(--tinta-suave); font-size: .8rem; }
+.menu-paginas__pie { margin: 4px 10px 6px; font-size: .78rem; color: var(--tinta-suave); }
+@media (max-width: 760px) {
+  .menu-paginas { position: fixed; top: auto; bottom: calc(76px + env(safe-area-inset-bottom)); left: 8px; right: 8px; width: auto; }
+}
+
+/* selector de idioma: toda la pastilla (con el ícono) abre la lista, y el foco rodea la pastilla */
+.idioma { position: relative; padding: 0; cursor: pointer; }
+.idioma svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.idioma select { padding: 8px 14px 8px 34px; border-radius: 999px; outline: none; }
+.idioma select:focus-visible { outline: none; }
+.idioma:focus-within { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .25); }
+@media (max-width: 760px) {
+  .idioma { padding: 0; }
+  .idioma select { padding: 7px 10px; max-width: 74px; }
+}
+
+/* pie del inicio: autoría y cafecito */
+.inicio__pie {
+  margin-top: 18px; padding-top: 14px; width: 100%; border-top: 1px solid var(--borde);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px;
+  font-size: .86rem; color: var(--tinta-suave);
+}
+.inicio__pie a { color: var(--tinta); font-weight: 700; text-decoration: none; }
+.inicio__pie a:hover { color: var(--rojo); }
+.inicio__cafecito {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: var(--rojo-claro); color: var(--rojo) !important;
+}
+.inicio__cafecito:hover { background: var(--rojo); color: #fff !important; }
+@media (min-width: 761px) {
+  .inicio--tareas { padding-top: 18px; padding-bottom: 24px; }
+  .inicio--tareas .inicio__zona { padding: 20px 28px; }
+  .inicio--tareas .inicio__avatar { width: 84px; height: 84px; }
+  .inicio__grupo .inicio__pregunta { margin: 16px 0 8px; }
+  .inicio__sello { margin-top: 14px !important; }
+  /* el pie deja lugar a Labcin a la derecha */
+  .inicio__pie { padding-right: 0; }
+}
+/* pantallas bajas (notebooks): el inicio se compacta para entrar sin scroll */
+@media (min-width: 761px) and (max-height: 820px) {
+  .inicio--tareas { padding-top: 12px; padding-bottom: 12px; }
+  .inicio--tareas .inicio__zona { padding: 14px 24px; }
+  .inicio--tareas .inicio__avatar { width: 66px; height: 66px; }
+  .inicio--tareas h1 { font-size: 1.55rem; margin-bottom: 4px; }
+  .inicio--tareas .inicio__zona p { margin-bottom: 10px; }
+  .inicio--tareas .boton--grande { padding: 9px 18px; font-size: 1rem; }
+  .inicio__grupo .inicio__pregunta { margin: 8px 0 5px; font-size: 1.05rem; }
+  .inicio--tareas .tareas { gap: 8px; }
+  .inicio--tareas .tarea { padding: 8px 12px; }
+  .inicio--tareas .tarea__icono { width: 32px; height: 32px; border-radius: 10px; }
+  .inicio__sello { margin-top: 10px !important; }
+  .inicio__pie { margin-top: 10px; padding-top: 10px; }
+}

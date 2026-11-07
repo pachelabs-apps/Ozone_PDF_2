@@ -1,6 +1,47 @@
 // Abrir y guardar archivos: en la app instalada usa los diálogos del sistema;
 // en el navegador usa el selector de archivos y la descarga local. Nunca se sube nada.
+import { T } from "./i18n";
+
 export const enApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+// Archivo que no se puede pisar (por ejemplo, el original con firma digital).
+let protegido: string | null = null;
+export function protegerOriginal(ruta: string | null | undefined) { protegido = ruta || null; }
+const igual = (a: string, b: string) => a.replace(/\\/g, "/").toLowerCase() === b.replace(/\\/g, "/").toLowerCase();
+
+// Antes de escribir: avisa si la carpeta se sube a la nube y no deja pisar el original protegido.
+// Devuelve true si se puede guardar ahí.
+async function puedoGuardar(ruta: string): Promise<boolean> {
+  const { ask, message } = await import("@tauri-apps/plugin-dialog");
+  if (protegido && igual(ruta, protegido)) {
+    await message(T("Ese es el PDF original con firma digital. Guardalo con otro nombre para que el original siga firmado."), { title: "Ozone PDF", kind: "warning" });
+    return false;
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const nube = await invoke<string | null>("carpeta_nube", { ruta });
+    if (nube) {
+      return await ask(
+        T("Esta carpeta se sincroniza con la nube:") + "\n" + nube + "\n\n" +
+        T("El servicio de nube (OneDrive, Google Drive, Dropbox…) va a subir el archivo a internet. Ozone PDF no usa internet, pero ese servicio sí.") +
+        "\n\n" + T("¿Querés guardar ahí igual?"),
+        { title: "Ozone PDF", kind: "warning", okLabel: T("Guardar igual"), cancelLabel: T("Elegir otra carpeta") },
+      );
+    }
+  } catch { /* si no se puede revisar, se guarda normalmente */ }
+  return true;
+}
+
+// Pide dónde guardar hasta que la persona elija un lugar que acepta (o cancele).
+async function elegirDestino(defaultPath: string, filtro: { name: string; extensions: string[] }): Promise<string | null> {
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  for (;;) {
+    const ruta = await save({ defaultPath, filters: [filtro] });
+    if (!ruta) return null;
+    if (await puedoGuardar(ruta)) return ruta;
+    defaultPath = ruta;
+  }
+}
 
 export type Abierto = { nombre: string; datos: ArrayBuffer; ruta?: string };
 
@@ -42,14 +83,13 @@ export function nombreSugerido(nombre: string) {
 export async function guardarConDialogo(datos: Uint8Array, nombre: string, rutaOriginal?: string): Promise<boolean> {
   const sugerido = nombreSugerido(nombre);
   if (enApp) {
-    const { save } = await import("@tauri-apps/plugin-dialog");
     const { writeFile } = await import("@tauri-apps/plugin-fs");
     let defaultPath = sugerido;
     if (rutaOriginal) {
       const corte = Math.max(rutaOriginal.lastIndexOf("/"), rutaOriginal.lastIndexOf("\\"));
       if (corte >= 0) defaultPath = rutaOriginal.slice(0, corte + 1) + sugerido;
     }
-    const ruta = await save({ defaultPath, filters: [{ name: "PDF", extensions: ["pdf"] }] });
+    const ruta = await elegirDestino(defaultPath, { name: "PDF", extensions: ["pdf"] });
     if (!ruta) return false;
     await writeFile(ruta, datos);
     return true;
@@ -127,7 +167,6 @@ function descargar(datos: Uint8Array, nombre: string) {
 // Guarda un archivo con el nombre exacto que se le pasa (eligiendo dónde en la app instalada).
 export async function guardarArchivo(datos: Uint8Array, nombre: string, junto?: string): Promise<boolean> {
   if (enApp) {
-    const { save } = await import("@tauri-apps/plugin-dialog");
     const { writeFile } = await import("@tauri-apps/plugin-fs");
     const ext = extension(nombre);
     let defaultPath = nombre;
@@ -135,7 +174,7 @@ export async function guardarArchivo(datos: Uint8Array, nombre: string, junto?: 
       const corte = Math.max(junto.lastIndexOf("/"), junto.lastIndexOf("\\"));
       if (corte >= 0) defaultPath = junto.slice(0, corte + 1) + nombre;
     }
-    const ruta = await save({ defaultPath, filters: [{ name: (TIPOS[ext] || TIPOS.pdf).nombre, extensions: [ext] }] });
+    const ruta = await elegirDestino(defaultPath, { name: (TIPOS[ext] || TIPOS.pdf).nombre, extensions: [ext] });
     if (!ruta) return false;
     await writeFile(ruta, datos);
     return true;
@@ -149,8 +188,13 @@ export async function guardarVarios(archivos: { nombre: string; datos: Uint8Arra
   if (enApp) {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const { writeFile } = await import("@tauri-apps/plugin-fs");
-    const carpeta = await open({ directory: true, multiple: false });
-    if (!carpeta || Array.isArray(carpeta)) return false;
+    let carpeta: string | null = null;
+    for (;;) {
+      const c = await open({ directory: true, multiple: false });
+      if (!c || Array.isArray(c)) return false;
+      const sep0 = c.includes("\\") ? "\\" : "/";
+      if (await puedoGuardar(c.replace(/[\\/]$/, "") + sep0 + archivos[0].nombre)) { carpeta = c; break; }
+    }
     const sep = carpeta.includes("\\") ? "\\" : "/";
     for (const a of archivos) await writeFile(carpeta.replace(/[\\/]$/, "") + sep + a.nombre, a.datos);
     return true;
@@ -164,4 +208,11 @@ export async function guardarVarios(archivos: { nombre: string; datos: Uint8Arra
 
 export function base(nombre: string) {
   return nombre.replace(/\.pdf$/i, "").replace(/ \(Ozone\)$/, "");
+}
+
+// Abre un enlace en el navegador de la persona (la app en sí no se conecta a nada).
+export async function abrirEnlace(url: string) {
+  if (enApp) {
+    try { const { openUrl } = await import("@tauri-apps/plugin-opener"); await openUrl(url); } catch { /* sin navegador */ }
+  } else window.open(url, "_blank", "noopener");
 }

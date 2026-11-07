@@ -3,7 +3,7 @@ import {
   Combine, Scissors, FileOutput, Minimize2, Lock, Stamp, ListOrdered, Scaling, FileImage, FileText, Eraser, Camera, X, ArrowLeft,
 } from "lucide-react";
 import { T } from "../i18n";
-import { motor, type InfoDoc } from "../motor/motor";
+import { motor, type InfoDoc, type Seguridad } from "../motor/motor";
 import { abrirVarios, guardarArchivo, guardarVarios, base } from "../archivos";
 
 export type IdHerramienta =
@@ -47,6 +47,8 @@ type Props = {
   alOcupado: (b: boolean) => void;
   alConArchivo: (id: IdHerramienta) => void; // pide un PDF y después abre la herramienta
   alRecargar: (info: InfoDoc) => void;        // vuelve a dibujar el PDF abierto sin marcarlo como cambiado
+  seguridad: Seguridad | null;
+  alBloqueado: () => void;
 };
 
 function tam(b: number) {
@@ -67,6 +69,9 @@ export default function Herramientas(p: Props) {
     if (id === "ajustar") { p.alCerrar(); p.alAjustar(); return; }
     if (id === "unir") { unir(); return; }
     if (!p.doc) { p.alCerrar(); p.alConArchivo(id); return; }
+    // PDF con restricciones: solo lo que el autor permite (leer el texto o imprimir a imágenes)
+    const s = p.seguridad;
+    if (s?.restringido && !(id === "texto" && s.permisos.copiar) && !(id === "imagenes" && s.permisos.imprimir)) { p.alCerrar(); p.alBloqueado(); return; }
     setAbierta(id);
   }
 
@@ -87,6 +92,7 @@ export default function Herramientas(p: Props) {
   }
 
   async function unir() {
+    if (p.doc && p.seguridad?.restringido) { p.alCerrar(); p.alBloqueado(); return; }
     const archivos = await abrirVarios();
     if (!archivos.length) { if (p.inicial === "unir") p.alCerrar(); return; }
     p.alCerrar();

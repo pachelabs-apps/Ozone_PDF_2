@@ -14,11 +14,13 @@
       {
         "label": "main",
         "title": "Ozone PDF",
-        "width": 1280,
-        "height": 860,
+        "width": 1180,
+        "height": 760,
         "minWidth": 360,
         "minHeight": 480,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {
@@ -35,11 +37,35 @@
     "longDescription": "Ozone PDF: firmá, anotá y censurá PDFs sin subir tus archivos a ningún lado.",
     "license": "AGPL-3.0-or-later",
     "homepage": "https://pachelabs.net",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "fileAssociations": [
-      { "ext": ["pdf"], "mimeType": "application/pdf", "name": "PDF", "description": "Documento PDF", "role": "Editor" }
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
     ],
-    "windows": { "nsis": { "languages": ["Spanish", "English"], "displayLanguageSelector": true } },
-    "macOS": { "minimumSystemVersion": "10.15" }
+    "fileAssociations": [
+      {
+        "ext": [
+          "pdf"
+        ],
+        "mimeType": "application/pdf",
+        "name": "PDF",
+        "description": "Documento PDF",
+        "role": "Editor"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "languages": [
+          "Spanish",
+          "English"
+        ],
+        "displayLanguageSelector": true
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

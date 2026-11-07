@@ -10,6 +10,49 @@ type Rect = [number, number, number, number];
 
 let doc: mupdf.PDFDocument | null = null;
 const instantaneas: Uint8Array[] = [];
+let original: Uint8Array | null = null; // el archivo tal como está en disco (para revisar la firma)
+
+// ---------- seguridad: firma digital, restricciones y adjuntos (como en Ozone PDF 1) ----------
+// Firma "valida": al menos una firma cubre el archivo completo (no se modificó después de firmar).
+// "alterada": hay datos de firma pero el archivo se reescribió después: para Acrobat ya no vale.
+// No reemplaza la verificación criptográfica de Acrobat, pero detecta cualquier copia modificada.
+function firmaCubreArchivo(v: mupdf.PDFObject) {
+  try {
+    const br = v.get("ByteRange");
+    if (!original || !br.isArray() || br.length < 4) return false;
+    const [a, b, c, d] = [0, 1, 2, 3].map((i) => br.get(i).asNumber());
+    if (a !== 0 || b <= 0 || c <= b || c + d !== original.length) return false;
+    return original[b] === 0x3c && original[c - 1] === 0x3e; // "<" y ">" del contenido de la firma
+  } catch { return false; }
+}
+function seguridad() {
+  const d = documento();
+  const t = d.getTrailer();
+  let cifrado = false;
+  try { cifrado = !t.get("Encrypt").isNull(); } catch { /* nada */ }
+  const permisos = { editar: d.hasPermission("edit"), anotar: d.hasPermission("annotate"), copiar: d.hasPermission("copy"), imprimir: d.hasPermission("print") };
+  let firma: null | "valida" | "alterada" = null;
+  try {
+    const campos = t.get("Root").get("AcroForm").get("Fields");
+    const firmas: mupdf.PDFObject[] = [];
+    const vistos = new Set<number>();
+    const recorrer = (o: mupdf.PDFObject, ftPadre: string, nivel: number) => {
+      if (nivel > 20 || o.isNull()) return;
+      if (o.isIndirect()) { const n = o.asIndirect(); if (vistos.has(n)) return; vistos.add(n); }
+      const ft = o.get("FT");
+      const tipo = ft.isName() ? ft.asName() : ftPadre;
+      const v = o.get("V");
+      if (tipo === "Sig" && v.isDictionary()) firmas.push(v);
+      const hijos = o.get("Kids");
+      if (hijos.isArray()) for (let i = 0; i < hijos.length; i++) recorrer(hijos.get(i), tipo, nivel + 1);
+    };
+    if (campos.isArray()) for (let i = 0; i < campos.length; i++) recorrer(campos.get(i), "", 0);
+    if (firmas.length) firma = firmas.some(firmaCubreArchivo) ? "valida" : "alterada";
+  } catch { /* sin formulario */ }
+  let adjuntos = 0;
+  try { adjuntos = Object.keys(d.getEmbeddedFiles()).length; } catch { /* nada */ }
+  return { firma, cifrado, restringido: cifrado && !permisos.editar, permisos, adjuntos };
+}
 
 function documento(): mupdf.PDFDocument {
   if (!doc) throw new Error("NO_DOC");
@@ -62,14 +105,15 @@ const ops: Record<string, (a: any) => any> = {
       throw new Error("NO_PDF");
     }
     doc = d;
+    original = new Uint8Array(datos);
     if (d.needsPassword()) return { necesitaClave: true };
-    return info();
+    return { ...info(), seguridad: seguridad() };
   },
 
   clave({ clave }: { clave: string }) {
     const ok = documento().authenticatePassword(clave);
     if (!ok) return { incorrecta: true };
-    return info();
+    return { ...info(), seguridad: seguridad() };
   },
 
   render({ pagina, escala }: { pagina: number; escala: number }) {

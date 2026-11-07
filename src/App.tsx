@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, Sun, Moon, SunMoon,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, Sun, Moon, SunMoon,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
@@ -9,11 +9,11 @@ import { leerA11y, aplicarA11y, type A11y, leerTema, aplicarTema, type Tema } fr
 import Herramientas, { LISTA, type IdHerramienta, type OpcionesGuardado } from "./componentes/Herramientas";
 import Escaner from "./escaner/Escaner";
 import AjustarPaginas, { type OpcionesAjuste } from "./componentes/AjustarPaginas";
-import { motor, type Anotacion, type InfoDoc, type Rect } from "./motor/motor";
+import { motor, type Anotacion, type InfoDoc, type Rect, type Seguridad } from "./motor/motor";
 import Pagina, { type Accion, type Herramienta, type Seleccion } from "./componentes/Pagina";
 import Miniaturas from "./componentes/Miniaturas";
 import FirmaModal, { firmaGuardada, type Firma } from "./componentes/FirmaModal";
-import { abrirConDialogo, archivoInicial, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
+import { protegerOriginal, abrirEnlace, abrirConDialogo, archivoInicial, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
 import { T, IDIOMAS, idioma, cambiarIdioma, type Idioma } from "./i18n";
 import Labcin, { type EventoLabcin } from "./labcin/Labcin";
 
@@ -63,7 +63,10 @@ export default function App() {
   const [, refrescarIdioma] = useState(idioma());
   const [doc, setDoc] = useState<InfoDoc | null>(null);
   const [archivo, setArchivo] = useState<{ nombre: string; ruta?: string } | null>(null);
-  const [pidiendoClave, setPidiendoClave] = useState<{ error?: boolean } | null>(null);
+  const [pidiendoClave, setPidiendoClave] = useState<{ error?: boolean; propietario?: boolean } | null>(null);
+  const [seguridad, setSeguridad] = useState<Seguridad | null>(null);
+  const [avisoSeguridad, setAvisoSeguridad] = useState<Seguridad | null>(null);
+  const rutaAbierta = useRef<string | undefined>(undefined);
   const [zoom, setZoom] = useState(1);
   const [herramienta, setHerramienta] = useState<Herramienta>("seleccionar");
   const [color, setColor] = useState(COLORES[0]);
@@ -74,6 +77,7 @@ export default function App() {
   const [historial, setHistorial] = useState<Paso[]>([]);
   const [cambios, setCambios] = useState(false);
   const [preguntaCerrar, setPreguntaCerrar] = useState(false);
+  const [menuPaginas, setMenuPaginas] = useState(false);
   const [tema, setTema] = useState<Tema>(leerTema);
   function cambiarTema(t?: Tema) {
     const nuevo = t || (tema === "auto" ? "claro" : tema === "claro" ? "oscuro" : "auto");
@@ -134,6 +138,7 @@ export default function App() {
     if (cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
     setOcupado(true);
     tamanoAbierto.current = a.datos.byteLength;
+    rutaAbierta.current = a.ruta;
     try {
       const r = await motor.abrir(a.datos);
       setArchivo({ nombre: a.nombre, ruta: a.ruta });
@@ -153,11 +158,26 @@ export default function App() {
     setVersiones({}); setAnots({}); setSeleccion(null); setHistorial([]); setCambios(false);
     setTextoAbierto(null); setActual(0); visibles.current.clear();
     setGuardado({}); setAbiertoConClave(false); claveOriginal.current = null;
+    setSeguridad(null); protegerOriginal(null);
+  }
+
+  // PDF con restricciones del autor: se puede ver, pero no modificar (como en Ozone PDF 1)
+  function bloqueado() {
+    if (!seguridad?.restringido) return false;
+    setAvisoSeguridad(seguridad);
+    return true;
   }
 
   function listo(info: InfoDoc) {
     setDoc(info);
     setPidiendoClave(null);
+    const seg = info.seguridad ?? null;
+    setSeguridad(seg);
+    // el original con firma digital no se puede pisar: al guardar hay que elegir otro nombre
+    protegerOriginal(seg?.firma ? rutaAbierta.current : null);
+    if (seg && (seg.firma || seg.restringido)) setTimeout(() => setAvisoSeguridad(seg), 450);
+    else if (seg?.adjuntos) setTimeout(() => labcin(T("Ojo: este PDF trae {n} archivos adjuntos adentro. Si lo vas a compartir, podés sacarlos con “Limpiar datos ocultos”.", { n: seg.adjuntos }), "tip",
+      { texto: T("Limpiar datos ocultos"), fn: () => setPanel({ inicial: "limpiar" }) }), 1300);
     const tarea = tareaPendiente.current;
     tareaPendiente.current = null;
     if (tarea) { tipsDados.current.add("abrir"); setTimeout(tarea, 350); }
@@ -170,6 +190,11 @@ export default function App() {
     motor.tamanosMezclados().then((mezcla) => {
       if (mezcla) setTimeout(() => labcin("Este PDF tiene páginas de distintos tamaños. Si querés, las paso todas a A4.", "tip",
         { texto: T("Pasar todo a A4"), fn: () => ajustarPaginas({ tamano: "a4", margen: 0, orientacion: "auto" }, true) }), 900);
+      else if (!tipsDados.current.has("paginas") && !info.seguridad?.firma && !info.seguridad?.restringido) {
+        tipsDados.current.add("paginas");
+        setTimeout(() => labcin("En “Páginas” podés pasar todo a A4, ponerle márgenes, numerarlas o agregar una marca de agua.", "tip",
+          { texto: T("Ver opciones"), fn: () => setMenuPaginas(true) }), 7000);
+      }
     }).catch(() => {});
     if (!tipsDados.current.has("abrir")) {
       tipsDados.current.add("abrir");
@@ -185,9 +210,15 @@ export default function App() {
   }
 
   async function probarClave(clave: string) {
+    const propietario = !!pidiendoClave?.propietario;
     const r = await motor.clave(clave);
-    if ("incorrecta" in r) setPidiendoClave({ error: true });
-    else {
+    if ("incorrecta" in r) setPidiendoClave({ error: true, propietario });
+    else if (propietario) {
+      setPidiendoClave(null);
+      const seg = (r as InfoDoc).seguridad ?? null;
+      setSeguridad(seg);
+      avisar(seg?.restringido ? T("Esa no es la contraseña de propietario.") : T("Listo: ya podés modificar este PDF."), seg?.restringido ? "error" : "ok");
+    } else {
       listo(r);
       setAbiertoConClave(true);
       claveOriginal.current = clave;
@@ -334,6 +365,7 @@ export default function App() {
   }
 
   async function operarPagina(f: () => Promise<InfoDoc>) {
+    if (bloqueado()) return;
     try { await preparar(); docCambio(await f()); }
     catch (e) { console.error(e); avisar(T("Algo salió mal. Probá de nuevo."), "error"); }
   }
@@ -393,6 +425,7 @@ export default function App() {
   // ---------- páginas del mismo tamaño ----------
   async function ajustarPaginas(o: OpcionesAjuste, desdeLabcin = false) {
     setAjustando(false);
+    if (bloqueado()) return;
     setOcupado(true);
     try {
       await preparar();
@@ -431,7 +464,7 @@ export default function App() {
     setOcupado(true);
     try {
       const antes = doc?.paginas.length || 0;
-      if (anexar && doc) await preparar();
+      if (anexar && doc) { if (bloqueado()) return; await preparar(); }
       const info = await motor.desdeImagenes(imagenes, anexar && !!doc);
       if (anexar && doc) {
         setDoc(info);
@@ -455,6 +488,7 @@ export default function App() {
   // ---------- guardar ----------
   async function guardar(censurarYa = false) {
     if (!doc || !archivo) return;
+    if (bloqueado()) { cerrarDespues.current = false; return; }
     const pendientes = await motor.censurasPendientes();
     if (pendientes > 0 && !censurarYa) return setConfirmarCensura(pendientes);
     setConfirmarCensura(null);
@@ -528,7 +562,8 @@ export default function App() {
       else if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); deshacer(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && seleccion) { e.preventDefault(); borrarSeleccion(); }
       else if (e.key === "Escape") {
-        if (panel || panelA11y || ajustando || confirmarCensura !== null) { setPanel(null); setPanelA11y(false); setAjustando(false); setConfirmarCensura(null); }
+        if (menuPaginas) setMenuPaginas(false);
+        else if (panel || panelA11y || ajustando || confirmarCensura !== null) { setPanel(null); setPanelA11y(false); setAjustando(false); setConfirmarCensura(null); }
         else { setSeleccion(null); setHerramienta("seleccionar"); }
       }
       else if (mod && (e.key === "+" || e.key === "=")) { e.preventDefault(); setZoom((z) => Math.min(z * 1.2, 5)); }
@@ -573,6 +608,7 @@ export default function App() {
   }
 
   function elegirHerramienta(h: Herramienta) {
+    if (h !== "seleccionar" && bloqueado()) return;
     setSeleccion(null);
     setTextoAbierto(null);
     if (h === "firma" && !firma) setModalFirma(true);
@@ -612,6 +648,8 @@ export default function App() {
             <span className="marca__archivo" title={archivo?.nombre}>
               {archivo ? archivo.nombre + (cambios ? " •" : "") : <>Pache<span className="marca__punto">.</span>Labs</>}
               {guardado.clave && <Lock size={12} className="marca__candado" aria-label={T("Al guardar, el PDF queda con contraseña.")} />}
+              {seguridad?.firma && <BadgeCheck size={13} className="marca__candado" aria-label={T("Con firma digital")} />}
+              {seguridad?.restringido && <ShieldAlert size={13} className="marca__candado" aria-label={T("Con restricciones")} />}
             </span>
           </div>
           </button>
@@ -673,6 +711,35 @@ export default function App() {
                 </button>
               );
             })}
+            <div className="herramientas__paginas">
+              <button className={"herr" + (menuPaginas ? " herr--activa" : "")} aria-haspopup="menu" aria-expanded={menuPaginas}
+                onClick={() => setMenuPaginas((v) => !v)} title={T("Ajustar, numerar y marca de agua")}>
+                <Files size={19} aria-hidden />
+                <span>{T("Páginas")} <ChevronDown size={12} aria-hidden className="herr__flecha" /></span>
+              </button>
+              {menuPaginas && (
+                <>
+                  <div className="menu-capa" onPointerDown={() => setMenuPaginas(false)} />
+                  <div className="menu-paginas" role="menu">
+                    {([
+                      ["ajustar", Scaling, "Ajustar páginas", "A4, Carta, márgenes o todas verticales"],
+                      ["numerar", ListOrdered, "Numerar páginas", "Agregá el número de página."],
+                      ["marca", Stamp, "Marca de agua", "Un texto de fondo en cada página."],
+                    ] as const).map(([id, I, t, d]) => (
+                      <button key={id} role="menuitem" className="menu-paginas__item" onClick={() => {
+                        setMenuPaginas(false);
+                        if (bloqueado()) return;
+                        if (id === "ajustar") setAjustando(true); else setPanel({ inicial: id });
+                      }}>
+                        <span className="tarjeta__icono"><I size={18} aria-hidden /></span>
+                        <span><strong>{T(t)}</strong><small>{T(d)}</small></span>
+                      </button>
+                    ))}
+                    <p className="menu-paginas__pie">{T("Para rotar, borrar u ordenar, usá las miniaturas de la izquierda.")}</p>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           <div className="herramientas__grupo herramientas__extra">
             <div className="herramientas__opciones">
@@ -776,7 +843,41 @@ export default function App() {
         />
       )}
 
-      {pidiendoClave && <ModalClave error={!!pidiendoClave.error} alProbar={probarClave} alCancelar={() => { setPidiendoClave(null); setArchivo(null); }} />}
+      {pidiendoClave && <ModalClave error={!!pidiendoClave.error} alProbar={probarClave} propietario={!!pidiendoClave.propietario}
+        alCancelar={() => { const prop = pidiendoClave.propietario; setPidiendoClave(null); if (!prop) setArchivo(null); }} />}
+
+      {avisoSeguridad && (
+        <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="titulo-seg">
+          <div className="modal__caja modal__caja--seguridad">
+            {avisoSeguridad.restringido ? (
+              <>
+                <h2 id="titulo-seg"><ShieldAlert size={22} aria-hidden /> {T("Este PDF tiene restricciones")}</h2>
+                <p>{T("Su autor no permite modificarlo. Lo podés ver, pero no anotarlo, firmarlo, unirlo ni cambiarle páginas.")}</p>
+                <p className="modal__ayuda">{avisoSeguridad.permisos.copiar && avisoSeguridad.permisos.imprimir ? T("Sí podés copiar el texto e imprimirlo.")
+                  : avisoSeguridad.permisos.copiar ? T("Sí podés copiar el texto.") : avisoSeguridad.permisos.imprimir ? T("Sí podés imprimirlo.") : ""}
+                  {" "}{T("Para quitar las restricciones hace falta la contraseña de propietario.")}</p>
+              </>
+            ) : avisoSeguridad.firma === "valida" ? (
+              <>
+                <h2 id="titulo-seg"><BadgeCheck size={22} aria-hidden /> {T("Este PDF tiene firma digital")}</h2>
+                <p>{T("Podés verlo y usar las herramientas, pero el archivo que guardes NO va a tener una firma válida: cualquier cambio la invalida (en Acrobat aparece como alterada), y al unir o extraer páginas se pierde.")}</p>
+                <p className="modal__ayuda">{T("El original no se modifica y sigue firmado: para trámites o para mandarlo como documento firmado, usá siempre el original.")}</p>
+              </>
+            ) : (
+              <>
+                <h2 id="titulo-seg"><ShieldAlert size={22} aria-hidden /> {T("La firma digital ya no es válida")}</h2>
+                <p>{T("Este PDF tiene una firma digital, pero el archivo se modificó después de firmarse (por ejemplo, es una copia unida o comprimida). Aunque se vea el sello de la firma, no sirve como documento firmado.")}</p>
+                <p className="modal__ayuda">{T("Si necesitás el documento firmado, pedí el original a quien lo firmó.")}</p>
+              </>
+            )}
+            <div className="modal__botones">
+              {avisoSeguridad.restringido && <button className="boton boton--suave" onClick={() => { setAvisoSeguridad(null); setPidiendoClave({ propietario: true }); }}>{T("Tengo la contraseña")}</button>}
+              <span className="espacio" />
+              <button className="boton boton--primario" autoFocus onClick={() => setAvisoSeguridad(null)}>{T("Entendido")}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {preguntaCerrar && (
         <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="titulo-cerrar" onPointerDown={(e) => e.target === e.currentTarget && setPreguntaCerrar(false)}>
@@ -820,6 +921,8 @@ export default function App() {
           alAjustar={() => setAjustando(true)}
           alOcupado={setOcupado}
           alConArchivo={(id) => conDocumento(() => setPanel({ inicial: id }))}
+          seguridad={seguridad}
+          alBloqueado={() => seguridad && setAvisoSeguridad(seguridad)}
           alRecargar={(info) => {
             setAnots({}); setSeleccion(null);
             setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));
@@ -909,16 +1012,22 @@ function Inicio({ alAbrir, alEscanear, alTarea }: { alAbrir: () => void; alEscan
         </div>
       ))}
       <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")} · <kbd>Ctrl</kbd>+<kbd>K</kbd> {T("para buscar")}</p>
+      <footer className="inicio__pie">
+        <span>{T("Ozone PDF es gratis y de código abierto. Hecho por")} <strong>Nicolás Pacheco</strong> · <a href="https://pachelabs.net" onClick={(e) => { e.preventDefault(); abrirEnlace("https://pachelabs.net"); }}>Pache<span className="marca__punto">.</span>Labs</a> · {T("Argentina")}</span>
+        <a className="inicio__cafecito" href="https://cafecito.app/pachelabs" onClick={(e) => { e.preventDefault(); abrirEnlace("https://cafecito.app/pachelabs"); }}>
+          <Coffee size={16} aria-hidden /> {T("Invitame un cafecito")}
+        </a>
+      </footer>
     </section>
   );
 }
 
-function ModalClave(p: { error: boolean; alProbar: (c: string) => void; alCancelar: () => void }) {
+function ModalClave(p: { error: boolean; propietario?: boolean; alProbar: (c: string) => void; alCancelar: () => void }) {
   const [clave, setClave] = useState("");
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-clave">
       <form className="modal__caja" onSubmit={(e) => { e.preventDefault(); p.alProbar(clave); }}>
-        <h2 id="titulo-clave">{T("Este PDF tiene contraseña")}</h2>
+        <h2 id="titulo-clave">{T(p.propietario ? "Contraseña de propietario" : "Este PDF tiene contraseña")}</h2>
         <input className="campo" type="password" autoFocus value={clave} onChange={(e) => setClave(e.target.value)} placeholder={T("Contraseña")} aria-label={T("Contraseña")} />
         {p.error && <p className="error">{T("Contraseña incorrecta.")}</p>}
         <div className="modal__botones">

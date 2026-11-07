@@ -2,7 +2,14 @@
 export type Rect = [number, number, number, number];
 export type Punto = [number, number];
 export type InfoPagina = { w: number; h: number; x0: number; y0: number };
-export type InfoDoc = { paginas: InfoPagina[]; titulo: string };
+export type Seguridad = {
+  firma: null | "valida" | "alterada";
+  cifrado: boolean;
+  restringido: boolean; // el autor no permite modificarlo
+  permisos: { editar: boolean; anotar: boolean; copiar: boolean; imprimir: boolean };
+  adjuntos: number;
+};
+export type InfoDoc = { paginas: InfoPagina[]; titulo: string; seguridad?: Seguridad };
 export type Anotacion = { id: number; tipo: string; r: Rect; movible?: boolean; redimensionable?: boolean };
 
 type Pendiente = { ok: (v: any) => void; mal: (e: Error) => void };
