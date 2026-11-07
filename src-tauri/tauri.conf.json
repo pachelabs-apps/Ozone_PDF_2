@@ -64,6 +64,9 @@
         "displayLanguageSelector": true,
         "installMode": "perMachine",
         "installerHooks": "instalador/hooks.nsh"
+      },
+      "wix": {
+        "license": "instalador/AVISO_USO.rtf"
       }
     },
     "macOS": {
