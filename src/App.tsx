@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, X, House, Sun, Moon, SunMoon,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, Sun, Moon, SunMoon,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
@@ -352,6 +352,7 @@ export default function App() {
       case "censurar": return conDocumento(() => elegirHerramienta("censurar"));
       case "escanear": return abrirEscaner();
       case "unir": return setPanel({ inicial: "unir" });
+      case "dividir": return conDocumento(() => setPanel({ inicial: "dividir" }));
       case "achicar": return conDocumento(() => setPanel({ inicial: "comprimir" }));
       case "proteger": return conDocumento(() => setPanel({ inicial: "clave" }));
       case "a4": return conDocumento(() => setAjustando(true));
@@ -373,8 +374,9 @@ export default function App() {
     if (doc) for (const h of HERRAMIENTAS)
       lista.push({ id: "h-" + h.id, titulo: T(h.nombre), desc: T(h.ayuda), icono: h.icono, palabras: SINONIMOS[h.id], accion: () => elegirHerramienta(h.id) });
     for (const h of LISTA)
-      lista.push({ id: "t-" + h.id, titulo: T(h.nombre), desc: T(h.desc), icono: h.icono, palabras: SINONIMOS[h.id], deshabilitado: !doc && !h.sinDoc,
-        accion: () => (h.id === "escanear" ? abrirEscaner() : h.id === "ajustar" ? setAjustando(true) : setPanel({ inicial: h.id })) });
+      lista.push({ id: "t-" + h.id, titulo: T(h.nombre), desc: T(h.desc), icono: h.icono, palabras: SINONIMOS[h.id], deshabilitado: !doc && h.grupo === "editar",
+        accion: () => (h.id === "escanear" ? abrirEscaner() : h.id === "ajustar" ? setAjustando(true)
+          : h.id === "unir" ? setPanel({ inicial: "unir" }) : conDocumento(() => setPanel({ inicial: h.id }))) });
     lista.push(
       { id: "abrir", titulo: T("Abrir"), icono: FolderOpen, palabras: "pdf archivo", accion: () => abrirConDialogo().then(cargar) },
       { id: "tema-claro", titulo: T("Tema claro"), icono: Sun, palabras: "modo blanco dia luz apariencia", accion: () => cambiarTema("claro") },
@@ -817,6 +819,12 @@ export default function App() {
           alEscanear={abrirEscaner}
           alAjustar={() => setAjustando(true)}
           alOcupado={setOcupado}
+          alConArchivo={(id) => conDocumento(() => setPanel({ inicial: id }))}
+          alRecargar={(info) => {
+            setAnots({}); setSeleccion(null);
+            setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));
+            setDoc(info);
+          }}
         />
       )}
       {escaner && <Escaner hayDocumento={!!doc} alCerrar={() => setEscaner(false)} alCrear={crearDesdeEscaneo} />}
@@ -849,15 +857,20 @@ export default function App() {
 
 const NOMBRE_TEMA: Record<Tema, string> = { auto: "Automático", claro: "Claro", oscuro: "Oscuro" };
 
-const TAREAS: { id: string; icono: typeof Type; titulo: string }[] = [
+type Tarea = { id: string; icono: typeof Type; titulo: string };
+// ordenadas de la más usada a la menos usada
+const RAPIDAS: Tarea[] = [
+  { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
+  { id: "dividir", icono: Scissors, titulo: "Dividir un PDF" },
+  { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
+  { id: "escanear", icono: Camera, titulo: "Escanear con la cámara" },
+  { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
+  { id: "todas", icono: LayoutGrid, titulo: "Ver todas las herramientas" },
+];
+const EDITAR: Tarea[] = [
   { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
   { id: "anotar", icono: Highlighter, titulo: "Resaltar y anotar" },
-  { id: "escanear", icono: Camera, titulo: "Escanear con la cámara" },
-  { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
-  { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
-  { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
   { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
-  { id: "todas", icono: LayoutGrid, titulo: "Ver todas las herramientas" },
 ];
 
 function Inicio({ alAbrir, alEscanear, alTarea }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void }) {
@@ -877,20 +890,24 @@ function Inicio({ alAbrir, alEscanear, alTarea }: { alAbrir: () => void; alEscan
           </button>
         </div>
       </div>
-      <h2 className="inicio__pregunta">{T("¿Qué querés hacer?")}</h2>
-      <ul className="tareas">
-        {TAREAS.map((t, i) => {
-          const I = t.icono;
-          return (
-            <li key={t.id} style={{ animationDelay: `${0.3 + i * 0.04}s` }}>
-              <button className="tarea" onClick={() => alTarea(t.id)}>
-                <span className="tarea__icono"><I size={22} aria-hidden /></span>
-                <span>{T(t.titulo)}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {([["Herramientas rápidas", "Te dan un archivo nuevo, sin tocar el original.", RAPIDAS], ["Editar un PDF", "Abrilo y trabajá sobre él.", EDITAR]] as const).map(([titulo, ayuda, lista], g) => (
+        <div key={titulo} className="inicio__grupo">
+          <h2 className="inicio__pregunta">{T(titulo)} <small>{T(ayuda)}</small></h2>
+          <ul className="tareas">
+            {lista.map((t, i) => {
+              const I = t.icono;
+              return (
+                <li key={t.id} style={{ animationDelay: `${0.3 + (g * 6 + i) * 0.04}s` }}>
+                  <button className="tarea" onClick={() => alTarea(t.id)}>
+                    <span className="tarea__icono"><I size={22} aria-hidden /></span>
+                    <span>{T(t.titulo)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
       <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")} · <kbd>Ctrl</kbd>+<kbd>K</kbd> {T("para buscar")}</p>
     </section>
   );

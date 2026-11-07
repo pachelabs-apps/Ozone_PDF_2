@@ -9,19 +9,23 @@ import { abrirVarios, guardarArchivo, guardarVarios, base } from "../archivos";
 export type IdHerramienta =
   | "unir" | "dividir" | "extraer" | "comprimir" | "clave" | "marca" | "numerar" | "ajustar" | "imagenes" | "texto" | "limpiar" | "escanear";
 
-export const LISTA: { id: IdHerramienta; icono: typeof Lock; nombre: string; desc: string; sinDoc?: boolean }[] = [
-  { id: "unir", icono: Combine, nombre: "Unir PDF", desc: "Juntá varios PDF en uno.", sinDoc: true },
-  { id: "escanear", icono: Camera, nombre: "Escanear", desc: "De fotos a PDF, como un escáner.", sinDoc: true },
-  { id: "dividir", icono: Scissors, nombre: "Dividir", desc: "Separá en varios archivos.", },
-  { id: "extraer", icono: FileOutput, nombre: "Extraer páginas", desc: "Guardá solo las páginas que elijas." },
-  { id: "comprimir", icono: Minimize2, nombre: "Comprimir", desc: "Que pese menos para mandarlo." },
-  { id: "clave", icono: Lock, nombre: "Contraseña", desc: "Poné o sacá una contraseña." },
-  { id: "marca", icono: Stamp, nombre: "Marca de agua", desc: "Un texto de fondo en cada página." },
-  { id: "numerar", icono: ListOrdered, nombre: "Numerar páginas", desc: "Agregá el número de página." },
-  { id: "ajustar", icono: Scaling, nombre: "Ajustar páginas", desc: "Todas en A4 o Carta, con márgenes." },
-  { id: "imagenes", icono: FileImage, nombre: "PDF a imágenes", desc: "Cada página como JPG o PNG." },
-  { id: "texto", icono: FileText, nombre: "PDF a texto", desc: "Copiá todo el texto a un .txt." },
-  { id: "limpiar", icono: Eraser, nombre: "Limpiar datos ocultos", desc: "Borrá autor, programa y otros datos." },
+type Item = { id: IdHerramienta; icono: typeof Lock; nombre: string; desc: string; grupo: "rapida" | "editar" };
+
+// Ordenadas de la más usada a la menos usada.
+// "rapida": te da un archivo nuevo y el original no se toca. "editar": cambia el PDF abierto (se puede deshacer).
+export const LISTA: Item[] = [
+  { id: "unir", icono: Combine, nombre: "Unir PDF", desc: "Juntá varios PDF en uno.", grupo: "rapida" },
+  { id: "dividir", icono: Scissors, nombre: "Dividir", desc: "Separá en varios archivos.", grupo: "rapida" },
+  { id: "comprimir", icono: Minimize2, nombre: "Comprimir", desc: "Que pese menos para mandarlo.", grupo: "rapida" },
+  { id: "extraer", icono: FileOutput, nombre: "Extraer páginas", desc: "Guardá solo las páginas que elijas.", grupo: "rapida" },
+  { id: "escanear", icono: Camera, nombre: "Escanear", desc: "De fotos a PDF, como un escáner.", grupo: "rapida" },
+  { id: "clave", icono: Lock, nombre: "Contraseña", desc: "Poné o sacá una contraseña.", grupo: "rapida" },
+  { id: "imagenes", icono: FileImage, nombre: "PDF a imágenes", desc: "Cada página como JPG o PNG.", grupo: "rapida" },
+  { id: "texto", icono: FileText, nombre: "PDF a texto", desc: "Copiá todo el texto a un .txt.", grupo: "rapida" },
+  { id: "limpiar", icono: Eraser, nombre: "Limpiar datos ocultos", desc: "Borrá autor, programa y otros datos.", grupo: "rapida" },
+  { id: "ajustar", icono: Scaling, nombre: "Ajustar páginas", desc: "Todas en A4 o Carta, con márgenes.", grupo: "editar" },
+  { id: "numerar", icono: ListOrdered, nombre: "Numerar páginas", desc: "Agregá el número de página.", grupo: "editar" },
+  { id: "marca", icono: Stamp, nombre: "Marca de agua", desc: "Un texto de fondo en cada página.", grupo: "editar" },
 ];
 
 export type OpcionesGuardado = { clave?: string; quitarClave?: boolean };
@@ -41,6 +45,8 @@ type Props = {
   alEscanear: () => void;
   alAjustar: () => void;
   alOcupado: (b: boolean) => void;
+  alConArchivo: (id: IdHerramienta) => void; // pide un PDF y después abre la herramienta
+  alRecargar: (info: InfoDoc) => void;        // vuelve a dibujar el PDF abierto sin marcarlo como cambiado
 };
 
 function tam(b: number) {
@@ -60,6 +66,7 @@ export default function Herramientas(p: Props) {
     if (id === "escanear") { p.alCerrar(); p.alEscanear(); return; }
     if (id === "ajustar") { p.alCerrar(); p.alAjustar(); return; }
     if (id === "unir") { unir(); return; }
+    if (!p.doc) { p.alCerrar(); p.alConArchivo(id); return; }
     setAbierta(id);
   }
 
@@ -84,10 +91,12 @@ export default function Herramientas(p: Props) {
     if (!archivos.length) { if (p.inicial === "unir") p.alCerrar(); return; }
     p.alCerrar();
     await correr(async () => {
-      if (p.doc) await p.alPreparar();
       const info = await motor.unir(archivos.map((a) => new Uint8Array(a.datos)));
-      p.alCambiarDoc(info, p.doc ? undefined : `${base(archivos[0].nombre)} + ${archivos.length - 1}.pdf`);
-      p.alAviso(T("Listo: se agregaron {n} archivos.", { n: archivos.length }), "ok");
+      // siempre queda como un PDF nuevo: al guardar te pide dónde, así no pisa ningún original
+      const primero = p.doc ? p.nombre : archivos[0].nombre;
+      const extra = p.doc ? archivos.length : archivos.length - 1;
+      p.alCambiarDoc(info, `${base(primero)} + ${extra}.pdf`);
+      p.alAviso(T("Listo: se unieron {n} archivos. Tocá Guardar para elegir dónde.", { n: extra + 1 }), "ok");
     });
   }
 
@@ -100,7 +109,7 @@ export default function Herramientas(p: Props) {
         {abierta === "dividir" && <Dividir {...p} correr={correr} />}
         {abierta === "extraer" && <Extraer {...p} correr={correr} />}
         {abierta === "comprimir" && <Comprimir {...p} correr={correr} />}
-        {abierta === "clave" && <Clave {...p} />}
+        {abierta === "clave" && <Clave {...p} correr={correr} />}
         {abierta === "marca" && <Marca {...p} correr={correr} />}
         {abierta === "numerar" && <Numerar {...p} correr={correr} />}
         {abierta === "imagenes" && <AImagenes {...p} correr={correr} />}
@@ -117,22 +126,28 @@ export default function Herramientas(p: Props) {
           <h2 id="titulo-herr">{T("Herramientas")}</h2>
           <button className="icono" onClick={p.alCerrar} aria-label={T("Cerrar")}><X size={20} /></button>
         </div>
-        <ul className="tarjetas">
-          {LISTA.map((h, i) => {
-            const I = h.icono;
-            const deshabilitada = !p.doc && !h.sinDoc;
-            return (
-              <li key={h.id} style={{ animationDelay: `${i * 25}ms` }}>
-                <button className="tarjeta" disabled={deshabilitada} onClick={() => elegir(h.id)}>
-                  <span className="tarjeta__icono"><I size={22} aria-hidden /></span>
-                  <strong>{T(h.nombre)}</strong>
-                  <small>{T(h.desc)}</small>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        {!p.doc && <p className="modal__ayuda">{T("Abrí un PDF para usar el resto de las herramientas.")}</p>}
+        {(["rapida", "editar"] as const).map((g) => (
+          <section key={g} className="grupo-herr" aria-labelledby={`grupo-${g}`}>
+            <h3 id={`grupo-${g}`} className="grupo-herr__titulo">{T(g === "rapida" ? "Herramientas rápidas" : "Editar el PDF abierto")}</h3>
+            <p className="grupo-herr__ayuda">{T(g === "rapida"
+              ? "Te dan un archivo nuevo. Tu archivo original no se toca."
+              : p.doc ? "Cambian el PDF que estás viendo. Se puede deshacer con Ctrl+Z y después tocás Guardar." : "Abrí un PDF para usarlas.")}</p>
+            <ul className="tarjetas">
+              {LISTA.filter((h) => h.grupo === g).map((h, i) => {
+                const I = h.icono;
+                return (
+                  <li key={h.id} style={{ animationDelay: `${i * 25}ms` }}>
+                    <button className="tarjeta" disabled={g === "editar" && !p.doc} onClick={() => elegir(h.id)}>
+                      <span className="tarjeta__icono"><I size={22} aria-hidden /></span>
+                      <strong>{T(h.nombre)}</strong>
+                      <small>{T(h.desc)}</small>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
       </div>
     </div>
   );
@@ -170,6 +185,25 @@ function Opciones<V extends string | number>(p: { titulo: string; valor: V; opci
 }
 
 type Sub = Props & { correr: <R>(f: () => Promise<R>) => Promise<R | undefined> };
+
+// Hace la operación sobre una copia, la guarda como archivo nuevo y deja el PDF abierto como estaba.
+async function comoArchivoNuevo<R>(p: Sub, operar: () => Promise<R>, sufijo: string, opciones: OpcionesGuardado = {}) {
+  if (await motor.censurasPendientes() > 0) { p.alAviso(T("Primero guardá el PDF para que se aplique la censura."), "error"); return null; }
+  const r = await p.correr(async () => {
+    await motor.instantanea();
+    try {
+      const resultado = await operar();
+      const { datos } = await motor.guardar(opciones);
+      return { resultado, datos };
+    } finally {
+      const info = await motor.restaurar().catch(() => null);
+      if (info) p.alRecargar(info);
+    }
+  });
+  if (!r) return null;
+  const ok = await guardarArchivo(r.datos, `${base(p.nombre)} (${T(sufijo)}).pdf`, p.ruta);
+  return ok ? r : null;
+}
 
 function Botones(p: { children: ReactNode }) {
   return <div className="modal__botones"><span className="espacio" />{p.children}</div>;
@@ -241,14 +275,12 @@ function Comprimir(p: Sub) {
   const [actual, setActual] = useState<number | null>(null);
   useEffect(() => { motor.tamanoActual().then(setActual).catch(() => {}); }, []);
   async function hacer() {
-    const r = await p.correr(async () => { await p.alPreparar(); return motor.comprimir(nivel); });
+    const r = await comoArchivoNuevo(p, () => motor.comprimir(nivel), "comprimido");
     if (!r) return;
-    const { antes, despues, achicadas, imagenes, ...info } = r;
-    void imagenes;
-    p.alCambiarDoc(info);
+    const { antes, despues, achicadas } = r.resultado;
     const ahorro = Math.round((1 - despues / antes) * 100);
     p.alAviso(achicadas || ahorro > 2
-      ? T("De {a} a {b} (−{p}%). Tocá Guardar para quedártelo.", { a: tam(antes), b: tam(despues), p: Math.max(0, ahorro) })
+      ? T("Listo: de {a} a {b} (−{p}%), en un archivo nuevo.", { a: tam(antes), b: tam(despues), p: Math.max(0, ahorro) })
       : T("Este PDF ya estaba bien comprimido."), "ok");
     p.alCerrar();
   }
@@ -268,14 +300,14 @@ function Comprimir(p: Sub) {
 }
 
 // ---------- contraseña ----------
-function Clave(p: Props) {
+function Clave(p: Sub) {
   const [a, setA] = useState(p.guardado.clave || "");
   const [b, setB] = useState(p.guardado.clave || "");
   const coma = a.includes(",");
   const ok = a.length >= 4 && a === b && !coma;
   return (
     <div className="opciones">
-      <p className="modal__ayuda">{T("La contraseña se aplica al guardar. Sin ella, nadie puede abrir el PDF.")}</p>
+      <p className="modal__ayuda">{T("Se guarda una copia con contraseña. Sin ella, nadie puede abrir esa copia.")}</p>
       <label className="campo-etiqueta">{T("Contraseña nueva")}
         <input className="campo" type="password" autoFocus value={a} onChange={(e) => setA(e.target.value)} autoComplete="new-password" />
       </label>
@@ -287,11 +319,11 @@ function Clave(p: Props) {
       {a && a.length < 4 && <p className="modal__ayuda">{T("Usá al menos 4 caracteres.")}</p>}
       <Botones>
         {(p.abiertoConClave || p.guardado.clave) && (
-          <button className="boton boton--suave" onClick={() => { p.alGuardado({ quitarClave: true }); p.alAviso(T("Al guardar, el PDF queda sin contraseña."), "ok"); p.alCerrar(); }}>
+          <button className="boton boton--suave" onClick={async () => { if (await comoArchivoNuevo(p, async () => null, "sin contraseña", { quitarClave: true })) { p.alAviso(T("Listo: se guardó una copia sin contraseña."), "ok"); p.alCerrar(); } }}>
             {T("Quitar contraseña")}
           </button>
         )}
-        <button className="boton boton--primario" disabled={!ok} onClick={() => { p.alGuardado({ clave: a }); p.alAviso(T("Al guardar, el PDF queda con contraseña."), "ok"); p.alCerrar(); }}>
+        <button className="boton boton--primario" disabled={!ok} onClick={async () => { if (await comoArchivoNuevo(p, async () => null, "con contraseña", { clave: a })) { p.alAviso(T("Listo: se guardó una copia con contraseña."), "ok"); p.alCerrar(); } }}>
           {T("Poner contraseña")}
         </button>
       </Botones>
@@ -427,10 +459,9 @@ function ATexto(p: Sub) {
 // ---------- limpiar datos ----------
 function Limpiar(p: Sub) {
   async function hacer() {
-    const r = await p.correr(async () => { await p.alPreparar(); return motor.limpiarDatos(); });
+    const r = await comoArchivoNuevo(p, () => motor.limpiarDatos(), "limpio");
     if (!r) return;
-    p.alCambiarDoc({ ...p.doc!, titulo: "" });
-    p.alAviso(T("Listo: datos ocultos borrados. Tocá Guardar para quedártelo."), "ok");
+    p.alAviso(T("Listo: se guardó una copia sin datos ocultos."), "ok");
     p.alCerrar();
   }
   return (
