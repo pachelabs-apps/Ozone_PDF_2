@@ -604,6 +604,14 @@ export default function App() {
     return () => cancelAnimationFrame(id);
   }, [panel, panelA11y, ajustando, confirmarCensura, modalFirma, pidiendoClave]);
 
+  // el marco rojo de "soltá el archivo" se apaga siempre al soltar o cancelar, caiga donde caiga
+  useEffect(() => {
+    const apagar = () => setArrastrandoArchivo(false);
+    window.addEventListener("drop", apagar, true);
+    window.addEventListener("dragend", apagar, true);
+    return () => { window.removeEventListener("drop", apagar, true); window.removeEventListener("dragend", apagar, true); };
+  }, []);
+
   // avisar antes de cerrar con cambios sin guardar
   useEffect(() => {
     const antes = (e: BeforeUnloadEvent) => { if (cambios) { e.preventDefault(); } };
@@ -649,7 +657,7 @@ export default function App() {
   return (
     <div
       className={"app" + (arrastrandoArchivo ? " app--soltando" : "") + (intro ? " con-intro" : "") + (doc ? " con-doc" : "")}
-      onDragOver={(e) => { e.preventDefault(); setArrastrandoArchivo(true); }}
+      onDragOver={(e) => { e.preventDefault(); if (!rapida && e.dataTransfer.types.includes("Files")) setArrastrandoArchivo(true); }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setArrastrandoArchivo(false); }}
       onDrop={async (e) => {
         e.preventDefault();

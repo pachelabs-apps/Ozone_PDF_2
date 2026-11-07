@@ -215,6 +215,8 @@ const TEXTOS: Record<string, Fila> = {
   "Soltá imágenes JPG o PNG.": { en: "Drop JPG or PNG images.", de: "Lege JPG- oder PNG-Bilder ab.", zh: "请拖放 JPG 或 PNG 图片。", ja: "JPG か PNG の画像をドロップしてください。", ru: "Перетащите изображения JPG или PNG." },
   "Soltá archivos PDF.": { en: "Drop PDF files.", de: "Lege PDF-Dateien ab.", zh: "请拖放 PDF 文件。", ja: "PDF ファイルをドロップしてください。", ru: "Перетащите PDF-файлы." },
   "unido": { en: "merged", de: "zusammengeführt", zh: "已合并", ja: "結合", ru: "объединён" },
+  "Podés agregar varios y ordenarlos arrastrando.": { en: "You can add several and drag to reorder them.", de: "Du kannst mehrere hinzufügen und sie durch Ziehen sortieren.", zh: "可以添加多个，拖动来排序。", ja: "複数追加して、ドラッグで並べ替えられます。", ru: "Можно добавить несколько и упорядочить перетаскиванием." },
+  "Se unen en el orden de la lista. Arrastrá las tarjetas o usá las flechas para cambiarlo.": { en: "They're merged in list order. Drag the cards or use the arrows to change it.", de: "Sie werden in der Reihenfolge der Liste zusammengeführt. Ziehe die Karten oder nutze die Pfeile.", zh: "按列表顺序合并。拖动卡片或用箭头调整顺序。", ja: "リストの順に結合します。カードをドラッグするか矢印で順番を変えられます。", ru: "Объединяются в порядке списка. Перетаскивайте карточки или используйте стрелки." },
   "Cerrar sin guardar": { en: "Close without saving", de: "Ohne Speichern schließen", zh: "不保存关闭", ja: "保存せずに閉じる", ru: "Закрыть без сохранения" },
   "Aceptar": { en: "OK", de: "OK", zh: "确定", ja: "OK", ru: "ОК" },
   "Listo": { en: "Done", de: "Fertig", zh: "完成", ja: "完了", ru: "Готово" },

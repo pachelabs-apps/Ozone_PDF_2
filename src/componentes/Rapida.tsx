@@ -55,7 +55,7 @@ export default function Rapida(p: {
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [soltando, setSoltando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
-  const [abrirAlTerminar, setAbrirAlTerminar] = useState(() => { try { return localStorage.getItem(CLAVE_ABRIR) === "1"; } catch { return false; } });
+  const [abrirAlTerminar, setAbrirAlTerminar] = useState(() => { try { return localStorage.getItem(CLAVE_ABRIR) !== "0"; } catch { return true; } });
   // opciones de cada herramienta
   const [modo, setModo] = useState<"cada" | "rangos" | "tamano">("cada");
   const [rangos, setRangos] = useState("");
@@ -65,6 +65,7 @@ export default function Rapida(p: {
   const [formato, setFormato] = useState("jpg");
   const [dpi, setDpi] = useState(150);
   const listo = useRef(false);
+  const [arrastrando, setArrastrando] = useState<number | null>(null); // id de la tarjeta que se está moviendo
 
   // revisa cada PDF al agregarlo: páginas, contraseña, firma y restricciones
   async function revisar(a: Archivo): Promise<Archivo> {
@@ -105,7 +106,8 @@ export default function Rapida(p: {
     if (a) agregar([aBytes(a)]);
   }
   async function soltar(e: React.DragEvent) {
-    e.preventDefault(); e.stopPropagation(); setSoltando(false);
+    e.preventDefault(); setSoltando(false);
+    if (arrastrando !== null) { setArrastrando(null); return; } // era una tarjeta de la lista, no un archivo
     const fs = [...e.dataTransfer.files].filter((f) => esImagen ? f.type.startsWith("image/") : (/\.pdf$/i.test(f.name) || f.type === "application/pdf"));
     if (!fs.length) return p.alAviso(T(esImagen ? "Soltá imágenes JPG o PNG." : "Soltá archivos PDF."), "error");
     agregar(await Promise.all(fs.map(async (f) => ({ nombre: f.name, datos: new Uint8Array(await f.arrayBuffer()) }))));
@@ -232,10 +234,11 @@ export default function Rapida(p: {
   const I = h.icono;
   return (
     <section className={"rapida" + (soltando ? " rapida--soltando" : "")} aria-labelledby="titulo-rapida"
-      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setSoltando(true); }}
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.types.includes("Files")) setSoltando(true); }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setSoltando(false); }}
       onDrop={soltar}>
       <div className="rapida__cabeza">
+        <img className="rapida__labcin" src="/img/intro-avatar-solo.png" alt="" width={52} height={52} />
         <button className="icono" onClick={p.alVolver} aria-label={T("Volver")} title={T("Volver")}><ArrowLeft size={20} /></button>
         <span className="tarjeta__icono"><I size={22} aria-hidden /></span>
         <div>
@@ -260,12 +263,25 @@ export default function Rapida(p: {
             <button className="rapida__zona" onClick={elegir}>
               <FilePlus2 size={26} aria-hidden />
               <strong>{T(esImagen ? "Elegí o soltá imágenes acá" : varios ? "Elegí o soltá los PDF acá" : archivos.length ? "Cambiar el PDF" : "Elegí o soltá un PDF acá")}</strong>
-              <small>{T(varios ? "Podés agregar varios y ordenarlos." : "El original no se modifica.")}</small>
+              <small>{T(varios ? "Podés agregar varios y ordenarlos arrastrando." : "El original no se modifica.")}</small>
             </button>
             {archivos.length > 0 && (
               <ol className="rapida__lista">
                 {archivos.map((a, i) => (
-                  <li key={a.id} className={a.error && !a.necesitaClave ? "con-error" : ""}>
+                  <li key={a.id}
+                    className={(a.error && !a.necesitaClave ? "con-error" : "") + (varios ? " arrastrable" : "") + (arrastrando === a.id ? " arrastrando" : "")}
+                    draggable={varios}
+                    onDragStart={(e) => { setArrastrando(a.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(a.id)); }}
+                    onDragEnd={() => setArrastrando(null)}
+                    onDragOver={(e) => {
+                      if (arrastrando === null || arrastrando === a.id) return;
+                      e.preventDefault();
+                      setArchivos((v) => {
+                        const de = v.findIndex((x) => x.id === arrastrando), a2 = v.findIndex((x) => x.id === a.id);
+                        if (de < 0 || a2 < 0) return v;
+                        const n = [...v]; n.splice(a2, 0, n.splice(de, 1)[0]); return n;
+                      });
+                    }}>
                     <span className="rapida__num">{i + 1}</span>
                     <span className="rapida__nombre">
                       <strong title={a.nombre}>{a.imagen ? null : <FileText size={14} aria-hidden />} {a.nombre}</strong>
@@ -322,7 +338,7 @@ export default function Rapida(p: {
             </>}
             {p.id === "texto" && <p className="modal__ayuda">{T("Se guarda un archivo .txt con el texto de todas las páginas. Si el PDF es escaneado, no va a tener texto.")}</p>}
             {p.id === "limpiar" && <p className="modal__ayuda">{T("Se borra lo que el PDF guarda sin que se vea: autor, programa, fechas, adjuntos y nombres en las notas.")}</p>}
-            {p.id === "unir" && <p className="modal__ayuda">{T("Se unen en el orden de la lista. Usá las flechas para cambiarlo.")}</p>}
+            {p.id === "unir" && <p className="modal__ayuda">{T("Se unen en el orden de la lista. Arrastrá las tarjetas o usá las flechas para cambiarlo.")}</p>}
             {p.id === "img2pdf" && <p className="modal__ayuda">{T("Cada imagen queda en una página A4, centrada, en el orden de la lista.")}</p>}
 
             <label className="rapida__abrir">
