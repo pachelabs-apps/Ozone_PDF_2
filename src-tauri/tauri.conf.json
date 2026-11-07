@@ -64,15 +64,12 @@
         "displayLanguageSelector": true,
         "installMode": "perMachine",
         "installerHooks": "instalador/hooks.nsh"
-      },
-      "wix": {
-        "license": "instalador/AVISO_USO.rtf"
       }
     },
     "macOS": {
       "minimumSystemVersion": "10.15"
     },
-    "licenseFile": "instalador/AVISO_USO.txt",
+    "licenseFile": "instalador/AVISO_USO.rtf",
     "resources": {
       "../LICENSE": "LICENSE",
       "../LICENCIAS_DE_TERCEROS.md": "LICENCIAS_DE_TERCEROS.md"
