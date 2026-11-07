@@ -7,3 +7,8 @@ src-tauri/gen/schemas/
 
 # capturas de prueba
 /*.png
+
+# identidad de la Store y archivos de compilación del paquete MSIX
+msix_identidad.txt
+build/
+instalador/
