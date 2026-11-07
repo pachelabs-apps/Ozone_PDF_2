@@ -32,6 +32,12 @@ Todo en una sola app, sin programas aparte:
 | Motor PDF | [MuPDF.js](https://mupdf.com) (WebAssembly), en un Worker aparte |
 | App de escritorio | [Tauri 2](https://tauri.app) (Rust) — instaladores de ~6 MB |
 
+## Crear el instalador en Windows (doble clic)
+
+1. Instalá una sola vez [Node.js](https://nodejs.org) (versión LTS) y [Rust](https://rustup.rs) (aceptá las herramientas de C++ de Visual Studio que ofrece).
+2. Doble clic en **`CREAR_INSTALADOR.bat`**.
+3. Al terminar se abre la carpeta con el `.msi` y el `.exe` (en `src-tauri\target\release\bundle`).
+
 ## Probar en la compu
 
 Necesitás [Node.js 22](https://nodejs.org) y [Rust](https://rustup.rs).
