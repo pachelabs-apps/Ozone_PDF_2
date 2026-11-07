@@ -9,6 +9,7 @@ export type EventoLabcin = { texto: string; tipo?: "saludo" | "festejo" | "tip";
 const CLAVE = "ozone.labcin";
 const TIPS_GENERALES = [
   "Ozone PDF funciona sin internet: tus archivos nunca salen de tu equipo.",
+  "¿Preferís la pantalla oscura? Tocá el botón del sol, arriba. Lo que elijas queda guardado.",
   "Podés arrastrar un PDF directo a la ventana para abrirlo.",
   "Con Ctrl + y Ctrl − hacés zoom.",
   "Elegí una herramienta de arriba. Si te equivocás, Ctrl+Z deshace.",

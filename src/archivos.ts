@@ -165,7 +165,8 @@ function descargar(datos: Uint8Array, nombre: string) {
 }
 
 // Guarda un archivo con el nombre exacto que se le pasa (eligiendo dónde en la app instalada).
-export async function guardarArchivo(datos: Uint8Array, nombre: string, junto?: string): Promise<boolean> {
+// Devuelve la ruta donde quedó (o el nombre, en el navegador), o false si se canceló.
+export async function guardarArchivo(datos: Uint8Array, nombre: string, junto?: string): Promise<string | false> {
   if (enApp) {
     const { writeFile } = await import("@tauri-apps/plugin-fs");
     const ext = extension(nombre);
@@ -177,10 +178,10 @@ export async function guardarArchivo(datos: Uint8Array, nombre: string, junto?: 
     const ruta = await elegirDestino(defaultPath, { name: (TIPOS[ext] || TIPOS.pdf).nombre, extensions: [ext] });
     if (!ruta) return false;
     await writeFile(ruta, datos);
-    return true;
+    return ruta;
   }
   descargar(datos, nombre);
-  return true;
+  return nombre;
 }
 
 // Guarda varios archivos: en la app se elige una carpeta; en el navegador se descargan uno por uno.
@@ -215,4 +216,25 @@ export async function abrirEnlace(url: string) {
   if (enApp) {
     try { const { openUrl } = await import("@tauri-apps/plugin-opener"); await openUrl(url); } catch { /* sin navegador */ }
   } else window.open(url, "_blank", "noopener");
+}
+
+// Elegir fotos o escaneos (JPG, PNG…) para armar un PDF.
+export type Imagen = { nombre: string; datos: Uint8Array };
+export async function abrirImagenes(): Promise<Imagen[]> {
+  if (enApp) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const rutas = await open({ multiple: true, filters: [{ name: T("Imágenes"), extensions: ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tif", "tiff"] }] });
+    if (!rutas) return [];
+    const lista = Array.isArray(rutas) ? rutas : [rutas];
+    const out: Imagen[] = [];
+    for (const r of lista) out.push({ nombre: nombreDe(r), datos: await readFile(r) });
+    return out;
+  }
+  return new Promise((resolver) => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*"; input.multiple = true;
+    input.onchange = async () => resolver(await Promise.all([...(input.files || [])].map(async (f) => ({ nombre: f.name, datos: new Uint8Array(await f.arrayBuffer()) }))));
+    input.click();
+  });
 }

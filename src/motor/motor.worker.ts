@@ -110,6 +110,8 @@ const ops: Record<string, (a: any) => any> = {
     return { ...info(), seguridad: seguridad() };
   },
 
+  cerrar() { instantaneas.length = 0; doc?.destroy(); doc = null; original = null; return true; },
+
   clave({ clave }: { clave: string }) {
     const ok = documento().authenticatePassword(clave);
     if (!ok) return { incorrecta: true };
@@ -283,6 +285,41 @@ const ops: Record<string, (a: any) => any> = {
     const partes = H.dividir(mupdf, documento(), modo, valor);
     return { partes, __transferir: partes.map((p) => p.datos.buffer) };
   },
+  // rotar, borrar u ordenar varias páginas a la vez (como en Ozone PDF 1)
+  rotarRangos({ rangos, grados }: { rangos: string; grados: number }) {
+    const d = documento(), n = d.countPages();
+    const lista = rangos.trim() ? H.leerRangos(rangos, n) : [...Array(n).keys()];
+    if (!lista || !lista.length) throw new Error("RANGO");
+    for (const i of new Set(lista)) H.rotarPagina(d, i, grados);
+    return { ...info(), cambiadas: new Set(lista).size };
+  },
+  borrarRangos({ rangos }: { rangos: string }) {
+    const d = documento(), n = d.countPages();
+    const lista = H.leerRangos(rangos, n);
+    if (!lista || !lista.length) throw new Error("RANGO");
+    if (new Set(lista).size >= n) throw new Error("TODAS");
+    H.borrarPaginas(d, lista);
+    return { ...info(), cambiadas: new Set(lista).size };
+  },
+  // las páginas nombradas pasan adelante en ese orden; las demás quedan después, como estaban.
+  // "invertir" da vuelta todo el documento.
+  reordenar({ orden, invertir }: { orden: string; invertir?: boolean }) {
+    const d = documento(), n = d.countPages();
+    let destino: number[];
+    if (invertir) destino = [...Array(n).keys()].reverse();
+    else {
+      const lista = H.leerRangos(orden, n);
+      if (!lista || !lista.length) throw new Error("RANGO");
+      const primero = [...new Set(lista)];
+      destino = [...primero, ...[...Array(n).keys()].filter((i) => !primero.includes(i))];
+    }
+    const actual = [...Array(n).keys()];
+    destino.forEach((pag, k) => {
+      const j = actual.indexOf(pag);
+      if (j !== k) { H.moverPagina(d, j, k); actual.splice(k, 0, actual.splice(j, 1)[0]); }
+    });
+    return info();
+  },
   extraer({ rangos }: { rangos: string }) {
     const lista = H.leerRangos(rangos, documento().countPages());
     if (!lista || !lista.length) throw new Error("RANGO");
@@ -343,12 +380,6 @@ const ops: Record<string, (a: any) => any> = {
       areas.push((b[2] - b[0]) * (b[3] - b[1]));
     }
     return areas.length > 1 && Math.max(...areas) / Math.min(...areas) > 1.6;
-  },
-
-  cerrar() {
-    doc?.destroy();
-    doc = null;
-    return true;
   },
 };
 

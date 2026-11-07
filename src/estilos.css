@@ -827,3 +827,50 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
   .inicio__sello { margin-top: 10px !important; }
   .inicio__pie { margin-top: 10px; padding-top: 10px; }
 }
+.herr-buscar { margin: 0 0 8px; border: 1.5px solid var(--borde); border-radius: 12px; padding: 9px 12px; }
+.herr-buscar:focus-within { border-color: var(--rojo); }
+
+/* ---------- herramientas rápidas: pantalla propia, como en Ozone PDF clásico ---------- */
+.rapida { width: min(960px, 100%); margin: 0 auto; padding: 22px 20px 120px; animation: subir .35s var(--suave) both; }
+.rapida__cabeza { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.rapida__cabeza .tarjeta__icono { margin: 0; width: 46px; height: 46px; flex: none; }
+.rapida__cabeza h1 { margin: 0; font: 800 1.6rem/1.1 "Bricolage", system-ui, sans-serif; letter-spacing: -.02em; }
+.rapida__cabeza p { margin: 4px 0 0; color: var(--tinta-suave); }
+.rapida__cuerpo { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.rapida__archivos, .rapida__opciones { background: var(--panel); border: 1px solid var(--borde); border-radius: 18px; padding: 14px; box-shadow: var(--sombra); }
+.rapida__zona {
+  width: 100%; display: grid; justify-items: center; gap: 6px; padding: 24px 14px; border-radius: 14px;
+  border: 2px dashed #C9CBD2; background: var(--panel-2); color: var(--tinta); cursor: pointer; transition: border-color .2s, background-color .2s;
+}
+.rapida__zona svg { color: var(--rojo); }
+.rapida__zona small { color: var(--tinta-suave); }
+.rapida__zona:hover, .rapida--soltando .rapida__zona { border-color: var(--rojo); background: var(--rojo-claro); }
+.rapida__lista { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.rapida__lista li { display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 10px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); animation: subir .3s var(--suave) both; }
+.rapida__lista li.con-error { border-color: var(--rojo); }
+.rapida__lista .icono { width: 30px; height: 30px; flex: none; }
+.rapida__num { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--rojo-claro); color: var(--rojo); font-weight: 800; font-size: .8rem; }
+.rapida__nombre { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rapida__nombre strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .94rem; }
+.rapida__nombre strong svg { vertical-align: -2px; color: var(--tinta-suave); }
+.rapida__nombre small { color: var(--tinta-suave); font-size: .8rem; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.rapida__marca { display: inline-flex; align-items: center; gap: 4px; color: var(--tinta); }
+.rapida__marca svg { color: var(--rojo); }
+.rapida__marca--mal { color: var(--rojo); font-weight: 700; }
+.rapida__clave { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.rapida__clave .campo { max-width: 180px; }
+.rapida__opciones { display: grid; gap: 12px; }
+.rapida__abrir { display: flex; align-items: center; gap: 8px; font-size: .92rem; cursor: pointer; }
+.rapida__abrir input { width: 18px; height: 18px; accent-color: var(--rojo); }
+.rapida__hacer { width: 100%; justify-content: center; }
+.rapida__motivo { margin: -4px 0 0; color: var(--tinta-suave); font-size: .86rem; text-align: center; }
+.rapida__listo { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 46px 20px; background: var(--panel); border: 1px solid var(--borde); border-radius: 20px; box-shadow: var(--sombra); animation: modal-entra .3s var(--rebote); }
+.rapida__listo svg { color: #1E8A4C; }
+.rapida__listo h2 { margin: 0; font: 780 1.3rem/1.25 "Bricolage", system-ui, sans-serif; max-width: 34ch; }
+.rapida__botones { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
+@media (max-width: 760px) {
+  .rapida { padding: 14px 12px 140px; }
+  .rapida__cuerpo { grid-template-columns: minmax(0, 1fr); }
+  .rapida__cabeza h1 { font-size: 1.3rem; }
+}
+.rapida__archivos > .modal__ayuda { margin: 12px 4px 2px; }

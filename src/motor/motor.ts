@@ -97,12 +97,16 @@ class Motor {
   tamanosMezclados() {
     return this.pedir<boolean>("tamanosMezclados");
   }
+  cerrar() { return this.pedir<boolean>("cerrar"); }
   instantanea() { return this.pedir<boolean>("instantanea"); }
   restaurar() { return this.pedir<InfoDoc>("restaurar"); }
   olvidarInstantaneas() { return this.pedir<boolean>("olvidarInstantaneas"); }
   rotarPagina(i: number, grados: number) { return this.pedir<InfoDoc>("rotarPagina", { i, grados }); }
   moverPagina(de: number, a: number) { return this.pedir<InfoDoc>("moverPagina", { de, a }); }
   borrarPaginas(indices: number[]) { return this.pedir<InfoDoc>("borrarPaginas", { indices }); }
+  rotarRangos(rangos: string, grados: number) { return this.pedir<InfoDoc & { cambiadas: number }>("rotarRangos", { rangos, grados }); }
+  borrarRangos(rangos: string) { return this.pedir<InfoDoc & { cambiadas: number }>("borrarRangos", { rangos }); }
+  reordenar(orden: string, invertir = false) { return this.pedir<InfoDoc>("reordenar", { orden, invertir }); }
   unir(archivos: Uint8Array[]) { return this.pedir<InfoDoc>("unir", { archivos }, archivos.map((a) => a.buffer as ArrayBuffer)); }
   dividir(modo: string, valor: any) {
     return this.pedir<{ partes: { paginas: number; desde: number; hasta: number; datos: Uint8Array }[] }>("dividir", { modo, valor });
@@ -123,3 +127,7 @@ class Motor {
 }
 
 export const motor = new Motor();
+
+// Un segundo motor, aparte, para las herramientas rápidas: así nunca tocan el PDF abierto en el editor.
+let aparte: Motor | null = null;
+export function motorAparte() { return (aparte ??= new Motor()); }

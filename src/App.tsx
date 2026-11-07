@@ -6,6 +6,7 @@ import {
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
 import { leerA11y, aplicarA11y, type A11y, leerTema, aplicarTema, type Tema } from "./accesibilidad";
+import Rapida from "./componentes/Rapida";
 import Herramientas, { LISTA, type IdHerramienta, type OpcionesGuardado } from "./componentes/Herramientas";
 import Escaner from "./escaner/Escaner";
 import AjustarPaginas, { type OpcionesAjuste } from "./componentes/AjustarPaginas";
@@ -78,9 +79,11 @@ export default function App() {
   const [cambios, setCambios] = useState(false);
   const [preguntaCerrar, setPreguntaCerrar] = useState(false);
   const [menuPaginas, setMenuPaginas] = useState(false);
+  const [rapida, setRapida] = useState<{ id: IdHerramienta; inicial: Abierto | null } | null>(null);
+  const datosAbiertos = useRef<ArrayBuffer | null>(null); // el PDF tal como se abrió (para las herramientas rápidas)
   const [tema, setTema] = useState<Tema>(leerTema);
   function cambiarTema(t?: Tema) {
-    const nuevo = t || (tema === "auto" ? "claro" : tema === "claro" ? "oscuro" : "auto");
+    const nuevo = t || (tema === "claro" ? "oscuro" : tema === "oscuro" ? "auto" : "claro");
     aplicarTema(nuevo); setTema(nuevo);
     avisar(T("Tema: {t}", { t: T(NOMBRE_TEMA[nuevo]) }));
   }
@@ -138,6 +141,7 @@ export default function App() {
     if (cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
     setOcupado(true);
     tamanoAbierto.current = a.datos.byteLength;
+    datosAbiertos.current = a.datos.slice(0); // copia: el original se le pasa al motor
     rutaAbierta.current = a.ruta;
     try {
       const r = await motor.abrir(a.datos);
@@ -177,14 +181,14 @@ export default function App() {
     protegerOriginal(seg?.firma ? rutaAbierta.current : null);
     if (seg && (seg.firma || seg.restringido)) setTimeout(() => setAvisoSeguridad(seg), 450);
     else if (seg?.adjuntos) setTimeout(() => labcin(T("Ojo: este PDF trae {n} archivos adjuntos adentro. Si lo vas a compartir, podés sacarlos con “Limpiar datos ocultos”.", { n: seg.adjuntos }), "tip",
-      { texto: T("Limpiar datos ocultos"), fn: () => setPanel({ inicial: "limpiar" }) }), 1300);
+      { texto: T("Limpiar datos ocultos"), fn: () => abrirRapida("limpiar") }), 1300);
     const tarea = tareaPendiente.current;
     tareaPendiente.current = null;
     if (tarea) { tipsDados.current.add("abrir"); setTimeout(tarea, 350); }
     else if (tamanoAbierto.current > 8 * 1024 * 1024) {
       const mb = (tamanoAbierto.current / 1024 / 1024).toFixed(0);
       setTimeout(() => labcin(T("Este PDF pesa {t}. Si lo vas a mandar por mail o WhatsApp, lo puedo achicar.", { t: `${mb} MB` }), "tip",
-        { texto: T("Achicar"), fn: () => setPanel({ inicial: "comprimir" }) }), 1100);
+        { texto: T("Achicar"), fn: () => abrirRapida("comprimir") }), 1100);
     }
     tamanoAbierto.current = 0;
     motor.tamanosMezclados().then((mezcla) => {
@@ -383,10 +387,10 @@ export default function App() {
       case "anotar": return conDocumento(() => elegirHerramienta("resaltar"));
       case "censurar": return conDocumento(() => elegirHerramienta("censurar"));
       case "escanear": return abrirEscaner();
-      case "unir": return setPanel({ inicial: "unir" });
-      case "dividir": return conDocumento(() => setPanel({ inicial: "dividir" }));
-      case "achicar": return conDocumento(() => setPanel({ inicial: "comprimir" }));
-      case "proteger": return conDocumento(() => setPanel({ inicial: "clave" }));
+      case "unir": return abrirRapida("unir");
+      case "dividir": return abrirRapida("dividir");
+      case "achicar": return abrirRapida("comprimir");
+      case "proteger": return abrirRapida("clave");
       case "a4": return conDocumento(() => setAjustando(true));
       default: return setPanel({ inicial: null });
     }
@@ -406,9 +410,9 @@ export default function App() {
     if (doc) for (const h of HERRAMIENTAS)
       lista.push({ id: "h-" + h.id, titulo: T(h.nombre), desc: T(h.ayuda), icono: h.icono, palabras: SINONIMOS[h.id], accion: () => elegirHerramienta(h.id) });
     for (const h of LISTA)
-      lista.push({ id: "t-" + h.id, titulo: T(h.nombre), desc: T(h.desc), icono: h.icono, palabras: SINONIMOS[h.id], deshabilitado: !doc && h.grupo === "editar",
-        accion: () => (h.id === "escanear" ? abrirEscaner() : h.id === "ajustar" ? setAjustando(true)
-          : h.id === "unir" ? setPanel({ inicial: "unir" }) : conDocumento(() => setPanel({ inicial: h.id }))) });
+      lista.push({ id: "t-" + h.id, titulo: T(h.nombre), desc: T(h.desc), icono: h.icono, palabras: `${SINONIMOS[h.id] || ""} ${h.palabras || ""}`, deshabilitado: !doc && h.grupo === "editar",
+        accion: () => (h.grupo === "rapida" ? abrirRapida(h.id) : h.id === "ajustar" ? (bloqueado() || setAjustando(true))
+          : conDocumento(() => setPanel({ inicial: h.id }))) });
     lista.push(
       { id: "abrir", titulo: T("Abrir"), icono: FolderOpen, palabras: "pdf archivo", accion: () => abrirConDialogo().then(cargar) },
       { id: "tema-claro", titulo: T("Tema claro"), icono: Sun, palabras: "modo blanco dia luz apariencia", accion: () => cambiarTema("claro") },
@@ -458,7 +462,22 @@ export default function App() {
     setEscaner(true);
   }
 
-  async function crearDesdeEscaneo(imagenes: Uint8Array[], anexar: boolean) {
+  // herramientas rápidas: pantalla propia; si hay un PDF abierto, se ofrece ese
+  async function abrirRapida(id: IdHerramienta) {
+    if (id === "escanear") return abrirEscaner();
+    let inicial: Abierto | null = null;
+    if (doc && archivo && id !== "img2pdf") {
+      try {
+        const datos = !cambios && datosAbiertos.current ? datosAbiertos.current.slice(0) : (await motor.guardar(claveOriginal.current ? { clave: claveOriginal.current } : {})).datos.slice().buffer;
+        inicial = { nombre: archivo.nombre, datos, ruta: archivo.ruta };
+      } catch { /* sin PDF de partida */ }
+    }
+    setPanel(null); setMenuPaginas(false);
+    setRapida({ id, inicial });
+  }
+
+
+  async function crearDesdeEscaneo(imagenes: Uint8Array[], anexar: boolean, prefijo = T("Escaneo")) {
     if (!anexar && cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
     setEscaner(false);
     setOcupado(true);
@@ -472,7 +491,7 @@ export default function App() {
         setTimeout(() => irA(antes), 300);
       } else {
         const hoy = new Date().toISOString().slice(0, 10);
-        setArchivo({ nombre: `${T("Escaneo")} ${hoy}.pdf` });
+        setArchivo({ nombre: `${prefijo} ${hoy}.pdf` });
         reiniciar();
         listo(info);
         setCambios(true);
@@ -563,6 +582,7 @@ export default function App() {
       else if ((e.key === "Delete" || e.key === "Backspace") && seleccion) { e.preventDefault(); borrarSeleccion(); }
       else if (e.key === "Escape") {
         if (menuPaginas) setMenuPaginas(false);
+        else if (rapida && !panel && !panelA11y) setRapida(null);
         else if (panel || panelA11y || ajustando || confirmarCensura !== null) { setPanel(null); setPanelA11y(false); setAjustando(false); setConfirmarCensura(null); }
         else { setSeleccion(null); setHerramienta("seleccionar"); }
       }
@@ -634,6 +654,7 @@ export default function App() {
       onDrop={async (e) => {
         e.preventDefault();
         setArrastrandoArchivo(false);
+        if (rapida) return; // la pantalla de la herramienta recibe sus propios archivos
         const f = [...e.dataTransfer.files].find((x) => /\.pdf$/i.test(x.name) || x.type === "application/pdf");
         if (f) cargar(await desdeArchivo(f));
       }}
@@ -693,7 +714,7 @@ export default function App() {
         </div>
       </header>
 
-      {doc && (
+      {doc && !rapida && (
         <div className="herramientas" role="toolbar" aria-label={T("Herramientas")}>
           <div className="herramientas__grupo herramientas__lista">
             {HERRAMIENTAS.map((h) => {
@@ -792,7 +813,7 @@ export default function App() {
       )}
 
       <main className="cuerpo">
-        {doc && (
+        {doc && !rapida && (
           <Miniaturas
             paginas={doc.paginas} versiones={versiones} actual={actual} alElegir={irA}
             alRotar={(i, g) => operarPagina(() => motor.rotarPagina(i, g))}
@@ -801,7 +822,11 @@ export default function App() {
           />
         )}
         <div className="vista" ref={vista} onScroll={alDesplazar}>
-          {doc ? (
+          {rapida ? (
+            <Rapida key={rapida.id} id={rapida.id} inicial={rapida.inicial} alAviso={avisar} alOcupado={setOcupado}
+              alVolver={() => setRapida(null)}
+              alAbrirResultado={(a) => { setRapida(null); cargar(a); }} />
+          ) : doc ? (
             <>
               <p className={"ayuda" + (herramienta === "censurar" ? " ayuda--censura" : "")}>{T(ayuda)}</p>
               {doc.paginas.map((info, i) => (
@@ -831,7 +856,7 @@ export default function App() {
         </div>
       </main>
 
-      {doc && <div className="contador">{actual + 1} / {doc.paginas.length}</div>}
+      {doc && !rapida && <div className="contador">{actual + 1} / {doc.paginas.length}</div>}
 
       {modalFirma && (
         <FirmaModal
@@ -923,6 +948,7 @@ export default function App() {
           alConArchivo={(id) => conDocumento(() => setPanel({ inicial: id }))}
           seguridad={seguridad}
           alBloqueado={() => seguridad && setAvisoSeguridad(seguridad)}
+          alRapida={abrirRapida}
           alRecargar={(info) => {
             setAnots({}); setSeleccion(null);
             setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));

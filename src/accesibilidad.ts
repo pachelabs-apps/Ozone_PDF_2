@@ -92,8 +92,9 @@ const CLAVE_TEMA = "ozone.tema";
 const sistemaOscuro = window.matchMedia("(prefers-color-scheme: dark)");
 let temaActual: Tema = "auto";
 export function leerTema(): Tema {
-  try { const t = localStorage.getItem(CLAVE_TEMA); if (t === "claro" || t === "oscuro") return t; } catch { /* nada */ }
-  return "auto";
+  // de entrada es claro; si la persona elige otro, se recuerda
+  try { const t = localStorage.getItem(CLAVE_TEMA); if (t === "claro" || t === "oscuro" || t === "auto") return t; } catch { /* nada */ }
+  return "claro";
 }
 function pintarTema() {
   const oscuro = temaActual === "oscuro" || (temaActual === "auto" && sistemaOscuro.matches);
@@ -103,7 +104,7 @@ function pintarTema() {
 export function aplicarTema(t: Tema, guardar = true) {
   temaActual = t;
   pintarTema();
-  if (guardar) try { t === "auto" ? localStorage.removeItem(CLAVE_TEMA) : localStorage.setItem(CLAVE_TEMA, t); } catch { /* nada */ }
+  if (guardar) try { localStorage.setItem(CLAVE_TEMA, t); } catch { /* nada */ }
 }
 sistemaOscuro.addEventListener?.("change", pintarTema);
 aplicarTema(leerTema(), false);
