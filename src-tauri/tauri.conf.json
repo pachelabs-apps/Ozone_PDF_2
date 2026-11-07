@@ -61,11 +61,18 @@
           "Spanish",
           "English"
         ],
-        "displayLanguageSelector": true
+        "displayLanguageSelector": true,
+        "installMode": "perMachine",
+        "installerHooks": "instalador/hooks.nsh"
       }
     },
     "macOS": {
       "minimumSystemVersion": "10.15"
+    },
+    "licenseFile": "instalador/AVISO_USO.txt",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../LICENCIAS_DE_TERCEROS.md": "LICENCIAS_DE_TERCEROS.md"
     }
   }
 }

@@ -69,8 +69,9 @@ echo  ================================================
 echo    Listo! Los instaladores quedaron en:
 echo  ================================================
 echo.
-for %%f in ("src-tauri\target\release\bundle\msi\*.msi") do echo    MSI:  %%~ff
-for %%f in ("src-tauri\target\release\bundle\nsis\*.exe") do echo    EXE:  %%~ff
+for %%f in ("src-tauri\target\release\bundle\nsis\*.exe") do echo    EXE ^(recomendado^):  %%~ff
+echo          Muestra los terminos, crea la regla del firewall y reemplaza a Ozone PDF 1.
+for %%f in ("src-tauri\target\release\bundle\msi\*.msi") do echo    MSI ^(para empresas^):  %%~ff
 echo.
 echo  Para probarlo sin instalar, tambien podes abrir:
 echo    %~dp0src-tauri\target\release\ozone-pdf.exe
