@@ -51,3 +51,25 @@ export function hablar(texto: string, idioma: string) {
 export function hayVoz() {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
+
+// Tema claro u oscuro: "auto" sigue al sistema. Se guarda solo en este equipo.
+export type Tema = "auto" | "claro" | "oscuro";
+const CLAVE_TEMA = "ozone.tema";
+const sistemaOscuro = window.matchMedia("(prefers-color-scheme: dark)");
+let temaActual: Tema = "auto";
+export function leerTema(): Tema {
+  try { const t = localStorage.getItem(CLAVE_TEMA); if (t === "claro" || t === "oscuro") return t; } catch { /* nada */ }
+  return "auto";
+}
+function pintarTema() {
+  const oscuro = temaActual === "oscuro" || (temaActual === "auto" && sistemaOscuro.matches);
+  document.documentElement.classList.toggle("tema-oscuro", oscuro);
+  document.documentElement.style.colorScheme = oscuro ? "dark" : "light";
+}
+export function aplicarTema(t: Tema, guardar = true) {
+  temaActual = t;
+  pintarTema();
+  if (guardar) try { t === "auto" ? localStorage.removeItem(CLAVE_TEMA) : localStorage.setItem(CLAVE_TEMA, t); } catch { /* nada */ }
+}
+sistemaOscuro.addEventListener?.("change", pintarTema);
+aplicarTema(leerTema(), false);

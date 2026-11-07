@@ -17,8 +17,7 @@
   --radio: 12px;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+html.tema-oscuro {
     --fondo: #0F1013;
     --panel: #18191D;
     --panel-2: #202227;
@@ -28,7 +27,6 @@
     --activo: #3A1715;
     --sombra: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
     color-scheme: dark;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -79,7 +77,7 @@ button:disabled { cursor: default; opacity: .45; }
 .boton--suave { background: var(--panel-2); border-color: var(--borde); }
 .boton--suave:hover:not(:disabled) { background: var(--borde); }
 .boton--peligro { background: #1B1C20; color: #fff; }
-@media (prefers-color-scheme: dark) { .boton--peligro { background: #EDEEF1; color: #111; } }
+html.tema-oscuro .boton--peligro { background: #EDEEF1; color: #111; }
 .boton--chico { padding: 6px 10px; font-size: .88rem; }
 .boton--grande { padding: 13px 22px; font-size: 1.05rem; border-radius: 12px; }
 
@@ -291,12 +289,10 @@ button:disabled { cursor: default; opacity: .45; }
   --rebote: cubic-bezier(.2, 1.3, .4, 1);
   --sombra: 0 1px 2px rgba(23, 24, 28, .05), 0 18px 40px -22px rgba(23, 24, 28, .35);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+html.tema-oscuro {
     --fondo: #0E0F12; --panel: #17181C; --panel-2: #1F2126; --borde: #2A2D33;
     --tinta: #EEEFF2; --tinta-suave: #A3A7B0; --activo: #3A1512; --rojo-claro: #3A1512; --barra: #0B0C0E;
     --sombra: 0 1px 2px rgba(0, 0, 0, .4), 0 18px 40px -22px rgba(0, 0, 0, .7);
-  }
 }
 @font-face { font-family: "Bricolage"; src: url("/fuentes/bricolage-ext.woff2") format("woff2"); font-weight: 200 800; font-display: swap;
   unicode-range: U+0100-024F, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2C60-2C7F, U+A720-A7FF; }
@@ -628,13 +624,11 @@ html.a11y-contraste {
   --fondo: #FFFFFF; --panel: #FFFFFF; --panel-2: #FFFFFF; --borde: #000000; --tinta: #000000; --tinta-suave: #1A1A1A;
   --rojo: #B3140D; --rojo-hover: #6E0B06; --rojo-claro: #FFE1DE; --activo: #FFE1DE; --barra: #000000; --azul: #0038B8;
 }
-@media (prefers-color-scheme: dark) {
-  html.a11y-contraste {
+html.tema-oscuro.a11y-contraste {
     --fondo: #000000; --panel: #000000; --panel-2: #000000; --borde: #FFFFFF; --tinta: #FFFFFF; --tinta-suave: #F0F0F0;
     --rojo: #FF6B5E; --rojo-hover: #FFA79E; --rojo-claro: #3A0A06; --activo: #3A0A06; --azul: #FFD400;
   }
-  html.a11y-contraste .boton--primario { color: #000; }
-}
+html.tema-oscuro.a11y-contraste .boton--primario { color: #000; }
 html.a11y-contraste .herr, html.a11y-contraste .tarjeta, html.a11y-contraste .interruptor, html.a11y-contraste .modal__caja { border: 2px solid var(--borde); }
 html.a11y-contraste .herr--activa { outline: 2px solid var(--rojo); }
 html.a11y-contraste :focus-visible { outline-width: 4px; }
@@ -700,3 +694,35 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
 @media (max-width: 400px) {
   .marca__archivo { display: none; }
 }
+
+/* ---------- inicio compacto: todo entra sin scroll y Labcin no tapa ---------- */
+@media (min-width: 761px) {
+  .inicio--tareas { margin: 0 auto; padding-top: 28px; padding-bottom: 150px; }
+  .inicio--tareas .inicio__zona {
+    width: min(720px, 100%); display: grid; grid-template-columns: auto 1fr; column-gap: 26px; align-items: center;
+    text-align: left; padding: 26px 30px;
+  }
+  .inicio--tareas .inicio__avatar { grid-row: 1 / span 3; width: 96px; height: 96px; margin: 0; }
+  .inicio--tareas h1 { font-size: clamp(1.6rem, 3vw, 2.1rem); margin: 0 0 6px; }
+  .inicio--tareas .inicio__zona p { margin: 0 0 14px; }
+  .inicio--tareas .inicio__botones { justify-content: flex-start; }
+  .inicio__pregunta { margin: 24px 0 10px; font-size: 1.15rem; }
+  .tarea { min-height: 0; flex-direction: row; justify-content: flex-start; text-align: left; gap: 12px; padding: 12px 14px; }
+  .tarea__icono { width: 38px; height: 38px; border-radius: 12px; flex: none; }
+  .inicio__sello { margin-top: 18px !important; }
+}
+/* en el inicio el globo de Labcin va arriba del personaje, no al costado */
+.app:not(.con-doc) .labcin-app { flex-direction: column; align-items: flex-end; }
+.app:not(.con-doc) .labcin-app__globo { margin-bottom: -6px; margin-right: 18px; border-radius: 16px 16px 4px 16px; }
+
+/* cerrar el PDF y volver al inicio */
+.marca__volver { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 4px 8px 4px 4px; margin-left: -4px; border: 0; border-radius: 12px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.marca__volver:hover { background: rgba(255, 255, 255, .08); }
+.marca__cerrar { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: transparent; color: #fff; cursor: pointer; }
+.marca__cerrar:hover { background: var(--rojo); border-color: var(--rojo); }
+.barra { user-select: none; -webkit-user-select: none; }
+.marca__volver:disabled { opacity: 1; cursor: default; background: transparent; }
+
+/* botón de tema en la barra */
+.tema-btn { position: relative; }
+.tema-btn__letra { position: absolute; right: 3px; bottom: 2px; font: 800 .58rem/1 "Atkinson", system-ui, sans-serif; color: #fff; background: var(--rojo); border-radius: 4px; padding: 1px 3px; }

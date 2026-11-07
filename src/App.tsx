@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, X, House, Sun, Moon, SunMoon,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
-import { leerA11y, aplicarA11y, type A11y } from "./accesibilidad";
+import { leerA11y, aplicarA11y, type A11y, leerTema, aplicarTema, type Tema } from "./accesibilidad";
 import Herramientas, { LISTA, type IdHerramienta, type OpcionesGuardado } from "./componentes/Herramientas";
 import Escaner from "./escaner/Escaner";
 import AjustarPaginas, { type OpcionesAjuste } from "./componentes/AjustarPaginas";
@@ -73,6 +73,14 @@ export default function App() {
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
   const [historial, setHistorial] = useState<Paso[]>([]);
   const [cambios, setCambios] = useState(false);
+  const [preguntaCerrar, setPreguntaCerrar] = useState(false);
+  const [tema, setTema] = useState<Tema>(leerTema);
+  function cambiarTema(t?: Tema) {
+    const nuevo = t || (tema === "auto" ? "claro" : tema === "claro" ? "oscuro" : "auto");
+    aplicarTema(nuevo); setTema(nuevo);
+    avisar(T("Tema: {t}", { t: T(NOMBRE_TEMA[nuevo]) }));
+  }
+  const cerrarDespues = useRef(false);
   const [aviso, setAviso] = useState<{ texto: string; tipo?: "error" | "ok" } | null>(null);
   const [firma, setFirma] = useState<Firma | null>(() => firmaGuardada());
   const [modalFirma, setModalFirma] = useState(false);
@@ -369,6 +377,10 @@ export default function App() {
         accion: () => (h.id === "escanear" ? abrirEscaner() : h.id === "ajustar" ? setAjustando(true) : setPanel({ inicial: h.id })) });
     lista.push(
       { id: "abrir", titulo: T("Abrir"), icono: FolderOpen, palabras: "pdf archivo", accion: () => abrirConDialogo().then(cargar) },
+      { id: "tema-claro", titulo: T("Tema claro"), icono: Sun, palabras: "modo blanco dia luz apariencia", accion: () => cambiarTema("claro") },
+      { id: "tema-oscuro", titulo: T("Tema oscuro"), icono: Moon, palabras: "modo negro noche dark apariencia", accion: () => cambiarTema("oscuro") },
+      { id: "tema-auto", titulo: T("Tema automático"), desc: T("Igual que el sistema"), icono: SunMoon, palabras: "modo sistema apariencia", accion: () => cambiarTema("auto") },
+      { id: "cerrar", titulo: T("Cerrar PDF"), desc: T("Volver al inicio"), icono: House, palabras: "salir menu inicio volver atras", deshabilitado: !doc, accion: () => cerrarDocumento() },
       { id: "guardar", titulo: T("Guardar"), icono: Save, palabras: "descargar exportar", deshabilitado: !doc, accion: () => guardar() },
       { id: "deshacer", titulo: T("Deshacer"), icono: Undo2, palabras: "volver atras", deshabilitado: !historial.length, accion: deshacer },
       { id: "a11y", titulo: T("Accesibilidad"), icono: Accessibility, palabras: "letra grande contraste voz movimiento", accion: () => setPanelA11y(true) },
@@ -460,14 +472,27 @@ export default function App() {
       if (ok) {
         setCambios(false);
         avisar(T("Guardado ✓"), "ok");
-        labcin("¡Listo! Tu PDF quedó guardado.", "festejo");
-      }
+        if (cerrarDespues.current) { cerrarDespues.current = false; cerrarDocumento(true); }
+        else labcin("¡Listo! Tu PDF quedó guardado.", "festejo");
+      } else cerrarDespues.current = false;
     } catch (e) {
+      cerrarDespues.current = false;
       console.error(e);
       avisar(T("No se pudo guardar."), "error");
     } finally {
       setOcupado(false);
     }
+  }
+
+  // ---------- cerrar el PDF y volver al inicio ----------
+  function cerrarDocumento(forzar = false) {
+    if (!doc && !archivo) return;
+    if (cambios && !forzar) { setPreguntaCerrar(true); return; }
+    setPreguntaCerrar(false);
+    setPanel(null); setHerramienta("seleccionar"); setConfirmarCensura(null);
+    reiniciar();
+    setDoc(null); setArchivo(null);
+    motor.olvidarInstantaneas().catch(() => {});
   }
 
   // Labcin saluda al abrir la app
@@ -496,6 +521,7 @@ export default function App() {
       else if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setPaleta((v) => !v); }
       else if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); abrirConDialogo().then(cargar); }
       else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); guardar(); }
+      else if (mod && e.key.toLowerCase() === "w" && doc) { e.preventDefault(); cerrarDocumento(); }
       else if (escribiendo) return;
       else if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); deshacer(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && seleccion) { e.preventDefault(); borrarSeleccion(); }
@@ -576,6 +602,8 @@ export default function App() {
     >
       <header className="barra">
         <div className="marca">
+          <button type="button" className="marca__volver" onClick={() => cerrarDocumento()} disabled={!doc}
+            title={doc ? T("Volver al inicio") : undefined} aria-label={doc ? T("Volver al inicio") : "Ozone PDF"}>
           <img className="marca__logo" src="/img/marca.png" alt="" width={34} height={34} />
           <div className="marca__texto">
             <strong>Ozone PDF</strong>
@@ -584,10 +612,21 @@ export default function App() {
               {guardado.clave && <Lock size={12} className="marca__candado" aria-label={T("Al guardar, el PDF queda con contraseña.")} />}
             </span>
           </div>
+          </button>
+          {doc && (
+            <button type="button" className="marca__cerrar" onClick={() => cerrarDocumento()} title={T("Cerrar PDF") + " (Ctrl+W)"} aria-label={T("Cerrar PDF")}>
+              <X size={17} />
+            </button>
+          )}
         </div>
         <div className="barra__acciones">
           <button className="icono icono--barra" onClick={() => setPaleta(true)} title={T("Buscar herramienta") + " (Ctrl+K)"} aria-label={T("Buscar herramienta")}>
             <Search size={19} />
+          </button>
+          <button className="icono icono--barra tema-btn" onClick={() => cambiarTema()}
+            title={T("Tema: {t}", { t: T(NOMBRE_TEMA[tema]) }) + " — " + T("tocá para cambiar")} aria-label={T("Tema: {t}", { t: T(NOMBRE_TEMA[tema]) })}>
+            {tema === "claro" ? <Sun size={19} /> : tema === "oscuro" ? <Moon size={19} /> : <SunMoon size={19} />}
+            {tema === "auto" && <span className="tema-btn__letra" aria-hidden>A</span>}
           </button>
           <button className="icono icono--barra" onClick={() => setPanelA11y(true)} title={T("Accesibilidad") + " (Alt+A)"} aria-label={T("Accesibilidad")}>
             <Accessibility size={20} />
@@ -737,6 +776,21 @@ export default function App() {
 
       {pidiendoClave && <ModalClave error={!!pidiendoClave.error} alProbar={probarClave} alCancelar={() => { setPidiendoClave(null); setArchivo(null); }} />}
 
+      {preguntaCerrar && (
+        <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="titulo-cerrar" onPointerDown={(e) => e.target === e.currentTarget && setPreguntaCerrar(false)}>
+          <div className="modal__caja">
+            <h2 id="titulo-cerrar">{T("¿Guardar los cambios?")}</h2>
+            <p>{T("Hiciste cambios en “{n}”. Si cerrás sin guardar, se pierden.", { n: archivo?.nombre || "" })}</p>
+            <div className="modal__botones">
+              <button className="boton boton--suave" onClick={() => setPreguntaCerrar(false)}>{T("Cancelar")}</button>
+              <span className="espacio" />
+              <button className="boton boton--suave" onClick={() => cerrarDocumento(true)}>{T("Cerrar sin guardar")}</button>
+              <button className="boton boton--primario" autoFocus onClick={() => { setPreguntaCerrar(false); cerrarDespues.current = true; guardar(); }}>{T("Guardar")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmarCensura !== null && (
         <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="titulo-censura">
           <div className="modal__caja">
@@ -744,7 +798,7 @@ export default function App() {
             <p>{T("Hay {n} zonas marcadas para censurar. Al guardar, el texto, las imágenes y los dibujos que estén debajo se borran del archivo y no se pueden recuperar.", { n: confirmarCensura })}</p>
             <div className="modal__botones">
               <span className="espacio" />
-              <button className="boton boton--suave" onClick={() => setConfirmarCensura(null)}>{T("Cancelar")}</button>
+              <button className="boton boton--suave" onClick={() => { cerrarDespues.current = false; setConfirmarCensura(null); }}>{T("Cancelar")}</button>
               <button className="boton boton--peligro" onClick={() => guardar(true)}>{T("Censurar y guardar")}</button>
             </div>
           </div>
@@ -792,6 +846,8 @@ export default function App() {
     </div>
   );
 }
+
+const NOMBRE_TEMA: Record<Tema, string> = { auto: "Automático", claro: "Claro", oscuro: "Oscuro" };
 
 const TAREAS: { id: string; icono: typeof Type; titulo: string }[] = [
   { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
