@@ -1,0 +1,14 @@
+export function rotarPagina(doc: any, i: number, grados: number): void;
+export function moverPagina(doc: any, de: number, a: number): void;
+export function borrarPaginas(doc: any, indices: number[]): void;
+export function leerRangos(texto: string, total: number): number[] | null;
+export function documentoCon(mupdf: any, doc: any, indices: number[]): any;
+export function aBytes(d: any): Uint8Array;
+export function unir(mupdf: any, doc: any, archivos: Uint8Array[]): void;
+export function dividir(mupdf: any, doc: any, modo: string, valor: any): { paginas: number; desde: number; hasta: number; datos: Uint8Array }[];
+export function comprimir(mupdf: any, doc: any, nivel: string): { imagenes: number; achicadas: number };
+export function marcaDeAgua(mupdf: any, doc: any, png: Uint8Array, escala: number): void;
+export function numerar(mupdf: any, doc: any, o: { posicion: string; formato: string; tam: number; desde: number }): void;
+export function limpiarDatos(doc: any): { notas: number };
+export function aImagenes(mupdf: any, doc: any, dpi: number, formato: string): { pagina: number; datos: Uint8Array }[];
+export function aTexto(doc: any): string[];

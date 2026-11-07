@@ -3,11 +3,13 @@
 import * as mupdf from "mupdf";
 // @ts-ignore módulo JS propio
 import { ajustarPaginas, agregarImagenes } from "./paginas.js";
+import * as H from "./herramientas.js";
 
 type Punto = [number, number];
 type Rect = [number, number, number, number];
 
 let doc: mupdf.PDFDocument | null = null;
+const instantaneas: Uint8Array[] = [];
 
 function documento(): mupdf.PDFDocument {
   if (!doc) throw new Error("NO_DOC");
@@ -51,6 +53,7 @@ const REDIMENSIONABLES = new Set(["Stamp", "FreeText", "Square", "Circle", "Reda
 
 const ops: Record<string, (a: any) => any> = {
   abrir({ datos }: { datos: ArrayBuffer }) {
+    instantaneas.length = 0;
     doc?.destroy();
     doc = null;
     const d = mupdf.Document.openDocument(new Uint8Array(datos), "application/pdf");
@@ -202,8 +205,69 @@ const ops: Record<string, (a: any) => any> = {
     return true;
   },
 
-  guardar() {
-    const buf = documento().saveToBuffer("garbage=compact,compress=yes");
+  // ---------- deshacer cambios grandes (páginas, herramientas): se guarda una copia antes ----------
+  instantanea() {
+    const buf = documento().saveToBuffer("encrypt=none");
+    const copia = buf.asUint8Array().slice();
+    buf.destroy();
+    instantaneas.push(copia);
+    let total = instantaneas.reduce((n, x) => n + x.length, 0);
+    while (instantaneas.length > 1 && (instantaneas.length > 12 || total > 150 * 1024 * 1024)) total -= instantaneas.shift()!.length;
+    return true;
+  },
+  restaurar() {
+    const copia = instantaneas.pop();
+    if (!copia) throw new Error("SIN_COPIA");
+    doc?.destroy();
+    doc = mupdf.Document.openDocument(copia, "application/pdf") as mupdf.PDFDocument;
+    return info();
+  },
+  olvidarInstantaneas() { instantaneas.length = 0; return true; },
+
+  // ---------- herramientas ----------
+  rotarPagina({ i, grados }: { i: number; grados: number }) { H.rotarPagina(documento(), i, grados); return info(); },
+  moverPagina({ de, a }: { de: number; a: number }) { H.moverPagina(documento(), de, a); return info(); },
+  borrarPaginas({ indices }: { indices: number[] }) {
+    if (indices.length >= documento().countPages()) throw new Error("TODAS");
+    H.borrarPaginas(documento(), indices); return info();
+  },
+  unir({ archivos }: { archivos: Uint8Array[] }) {
+    if (!doc) doc = new mupdf.PDFDocument();
+    H.unir(mupdf, doc, archivos); return info();
+  },
+  dividir({ modo, valor }: { modo: string; valor: any }) {
+    const partes = H.dividir(mupdf, documento(), modo, valor);
+    return { partes, __transferir: partes.map((p) => p.datos.buffer) };
+  },
+  extraer({ rangos }: { rangos: string }) {
+    const lista = H.leerRangos(rangos, documento().countPages());
+    if (!lista || !lista.length) throw new Error("RANGO");
+    const d = H.documentoCon(mupdf, documento(), lista);
+    const datos = H.aBytes(d); d.destroy();
+    return { datos, paginas: lista.length, __transferir: [datos.buffer] };
+  },
+  comprimir({ nivel }: { nivel: string }) {
+    const d = documento();
+    const antes = H.aBytes(d).length;
+    const r = H.comprimir(mupdf, d, nivel);
+    const despues = H.aBytes(d).length;
+    return { ...r, antes, despues, ...info() };
+  },
+  tamanoActual() { return H.aBytes(documento()).length; },
+  marcaDeAgua({ png, escala }: { png: Uint8Array; escala: number }) { H.marcaDeAgua(mupdf, documento(), png, escala); return info(); },
+  numerar(o: { posicion: string; formato: string; tam: number; desde: number }) { H.numerar(mupdf, documento(), o); return info(); },
+  limpiarDatos() { return H.limpiarDatos(documento()); },
+  aImagenes({ dpi, formato }: { dpi: number; formato: string }) {
+    const lista = H.aImagenes(mupdf, documento(), dpi, formato);
+    return { lista, __transferir: lista.map((x) => x.datos.buffer) };
+  },
+  aTexto() { return H.aTexto(documento()); },
+
+  guardar({ clave, quitarClave }: { clave?: string; quitarClave?: boolean } = {}) {
+    let opciones = "garbage=compact,compress=yes";
+    if (clave) opciones += `,encrypt=aes-256,user-password=${clave},owner-password=${clave}`;
+    else if (quitarClave) opciones += ",encrypt=none";
+    const buf = documento().saveToBuffer(opciones);
     const datos = new Uint8Array(buf.asUint8Array());
     buf.destroy();
     return { datos, __transferir: [datos.buffer] };
@@ -218,6 +282,7 @@ const ops: Record<string, (a: any) => any> = {
   // Crea un PDF nuevo con fotos escaneadas, o las agrega al final del abierto.
   desdeImagenes({ imagenes, anexar, tamano }: { imagenes: Uint8Array[]; anexar: boolean; tamano?: string }) {
     if (!anexar || !doc) {
+      instantaneas.length = 0;
       doc?.destroy();
       doc = new mupdf.PDFDocument();
     }

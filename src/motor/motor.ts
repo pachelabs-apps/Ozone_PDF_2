@@ -90,8 +90,28 @@ class Motor {
   tamanosMezclados() {
     return this.pedir<boolean>("tamanosMezclados");
   }
-  guardar() {
-    return this.pedir<{ datos: Uint8Array }>("guardar");
+  instantanea() { return this.pedir<boolean>("instantanea"); }
+  restaurar() { return this.pedir<InfoDoc>("restaurar"); }
+  olvidarInstantaneas() { return this.pedir<boolean>("olvidarInstantaneas"); }
+  rotarPagina(i: number, grados: number) { return this.pedir<InfoDoc>("rotarPagina", { i, grados }); }
+  moverPagina(de: number, a: number) { return this.pedir<InfoDoc>("moverPagina", { de, a }); }
+  borrarPaginas(indices: number[]) { return this.pedir<InfoDoc>("borrarPaginas", { indices }); }
+  unir(archivos: Uint8Array[]) { return this.pedir<InfoDoc>("unir", { archivos }, archivos.map((a) => a.buffer as ArrayBuffer)); }
+  dividir(modo: string, valor: any) {
+    return this.pedir<{ partes: { paginas: number; desde: number; hasta: number; datos: Uint8Array }[] }>("dividir", { modo, valor });
+  }
+  extraer(rangos: string) { return this.pedir<{ datos: Uint8Array; paginas: number }>("extraer", { rangos }); }
+  comprimir(nivel: string) {
+    return this.pedir<InfoDoc & { antes: number; despues: number; imagenes: number; achicadas: number }>("comprimir", { nivel });
+  }
+  tamanoActual() { return this.pedir<number>("tamanoActual"); }
+  marcaDeAgua(png: Uint8Array, escala: number) { return this.pedir<InfoDoc>("marcaDeAgua", { png, escala }); }
+  numerar(o: { posicion: string; formato: string; tam: number; desde: number }) { return this.pedir<InfoDoc>("numerar", o); }
+  limpiarDatos() { return this.pedir<{ notas: number }>("limpiarDatos"); }
+  aImagenes(dpi: number, formato: string) { return this.pedir<{ lista: { pagina: number; datos: Uint8Array }[] }>("aImagenes", { dpi, formato }); }
+  aTexto() { return this.pedir<string[]>("aTexto"); }
+  guardar(o: { clave?: string; quitarClave?: boolean } = {}) {
+    return this.pedir<{ datos: Uint8Array }>("guardar", o);
   }
 }
 

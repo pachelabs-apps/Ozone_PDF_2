@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine,
 } from "lucide-react";
+import Paleta, { type Comando } from "./componentes/Paleta";
+import AccesibilidadPanel from "./componentes/Accesibilidad";
+import { leerA11y, aplicarA11y, type A11y } from "./accesibilidad";
+import Herramientas, { LISTA, type IdHerramienta, type OpcionesGuardado } from "./componentes/Herramientas";
 import Escaner from "./escaner/Escaner";
 import AjustarPaginas, { type OpcionesAjuste } from "./componentes/AjustarPaginas";
 import { motor, type Anotacion, type InfoDoc, type Rect } from "./motor/motor";
@@ -25,7 +29,8 @@ const COLOR_RESALTE = [1, 0.85, 0.1];
 type Paso =
   | { tipo: "crear"; pagina: number; id: number }
   | { tipo: "mover"; pagina: number; id: number; dx: number; dy: number }
-  | { tipo: "ajustar"; pagina: number; id: number; r: Rect };
+  | { tipo: "ajustar"; pagina: number; id: number; r: Rect }
+  | { tipo: "estructura" };
 
 const HERRAMIENTAS: { id: Herramienta; icono: typeof Type; nombre: string; ayuda: string }[] = [
   { id: "seleccionar", icono: MousePointer2, nombre: "Seleccionar", ayuda: "Tocá una anotación para moverla o borrarla." },
@@ -76,7 +81,7 @@ export default function App() {
   const [actual, setActual] = useState(0);
   const [arrastrandoArchivo, setArrastrandoArchivo] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const [intro, setIntro] = useState(() => !window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [intro, setIntro] = useState(() => !window.matchMedia("(prefers-reduced-motion: reduce)").matches && !leerA11y().movimiento);
   useEffect(() => {
     if (!intro) return;
     const t = setTimeout(() => setIntro(false), 2750);
@@ -89,6 +94,16 @@ export default function App() {
     setEventoLabcin((e) => ({ texto: T(texto), tipo, accion, n: (e?.n || 0) + 1 }));
   }, []);
   const [escaner, setEscaner] = useState(false);
+  const [panel, setPanel] = useState<{ inicial: IdHerramienta | null } | null>(null);
+  const [a11y, setA11y] = useState<A11y>(() => { const a = leerA11y(); aplicarA11y(a, false); return a; });
+  const [panelA11y, setPanelA11y] = useState(false);
+  function cambiarA11y(a: A11y) { setA11y(a); aplicarA11y(a); }
+  const [guardado, setGuardado] = useState<OpcionesGuardado>({});
+  const [abiertoConClave, setAbiertoConClave] = useState(false);
+  const claveOriginal = useRef<string | null>(null);
+  const tareaPendiente = useRef<(() => void) | null>(null);
+  const tamanoAbierto = useRef(0);
+  const [paleta, setPaleta] = useState(false);
   const [ajustando, setAjustando] = useState(false);
   const visibles = useRef(new Set<number>());
 
@@ -110,6 +125,7 @@ export default function App() {
     if (!a) return;
     if (cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
     setOcupado(true);
+    tamanoAbierto.current = a.datos.byteLength;
     try {
       const r = await motor.abrir(a.datos);
       setArchivo({ nombre: a.nombre, ruta: a.ruta });
@@ -128,11 +144,21 @@ export default function App() {
   function reiniciar() {
     setVersiones({}); setAnots({}); setSeleccion(null); setHistorial([]); setCambios(false);
     setTextoAbierto(null); setActual(0); visibles.current.clear();
+    setGuardado({}); setAbiertoConClave(false); claveOriginal.current = null;
   }
 
   function listo(info: InfoDoc) {
     setDoc(info);
     setPidiendoClave(null);
+    const tarea = tareaPendiente.current;
+    tareaPendiente.current = null;
+    if (tarea) { tipsDados.current.add("abrir"); setTimeout(tarea, 350); }
+    else if (tamanoAbierto.current > 8 * 1024 * 1024) {
+      const mb = (tamanoAbierto.current / 1024 / 1024).toFixed(0);
+      setTimeout(() => labcin(T("Este PDF pesa {t}. Si lo vas a mandar por mail o WhatsApp, lo puedo achicar.", { t: `${mb} MB` }), "tip",
+        { texto: T("Achicar"), fn: () => setPanel({ inicial: "comprimir" }) }), 1100);
+    }
+    tamanoAbierto.current = 0;
     motor.tamanosMezclados().then((mezcla) => {
       if (mezcla) setTimeout(() => labcin("Este PDF tiene páginas de distintos tamaños. Si querés, las paso todas a A4.", "tip",
         { texto: T("Pasar todo a A4"), fn: () => ajustarPaginas({ tamano: "a4", margen: 0, orientacion: "auto" }, true) }), 900);
@@ -153,7 +179,13 @@ export default function App() {
   async function probarClave(clave: string) {
     const r = await motor.clave(clave);
     if ("incorrecta" in r) setPidiendoClave({ error: true });
-    else listo(r);
+    else {
+      listo(r);
+      setAbiertoConClave(true);
+      claveOriginal.current = clave;
+      setTimeout(() => labcin("Este PDF tenía contraseña. Si lo vas a compartir con alguien de confianza, puedo guardarlo sin ella.", "tip",
+        { texto: T("Guardar sin contraseña"), fn: () => { setGuardado({ quitarClave: true }); setCambios(true); avisar(T("Al guardar, el PDF queda sin contraseña."), "ok"); } }), 1200);
+    }
   }
 
   // ---------- anotaciones ----------
@@ -245,13 +277,22 @@ export default function App() {
     const paso = historial[historial.length - 1];
     if (!paso) return;
     setHistorial((h) => h.slice(0, -1));
+    if (paso.tipo === "estructura") {
+      try {
+        const info = await motor.restaurar();
+        setAnots({}); setSeleccion(null);
+        setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));
+        setDoc(info);
+      } catch { /* nada que deshacer */ }
+      return;
+    }
     try {
       if (paso.tipo === "crear") await motor.borrar(paso.pagina, paso.id);
       if (paso.tipo === "mover") await motor.mover(paso.pagina, paso.id, -paso.dx, -paso.dy);
       if (paso.tipo === "ajustar") await motor.ajustar(paso.pagina, paso.id, paso.r);
     } catch { /* la anotación ya no existe */ }
     setSeleccion(null);
-    await recargar(paso.pagina);
+    await recargar((paso as { pagina: number }).pagina);
   }
 
   async function borrarSeleccion() {
@@ -259,9 +300,80 @@ export default function App() {
     const s = seleccion;
     setSeleccion(null);
     await motor.borrar(s.pagina, s.id);
-    setHistorial((h) => h.filter((p) => !(p.pagina === s.pagina && p.id === s.id)));
+    setHistorial((h) => h.filter((p) => p.tipo === "estructura" || !(p.pagina === s.pagina && p.id === s.id)));
     setCambios(true);
     await recargar(s.pagina);
+  }
+
+  // ---------- cambios en la estructura del documento (páginas, unir, marca de agua…) ----------
+  // Se guarda una copia antes de un cambio grande, para poder deshacerlo.
+  async function preparar() {
+    if (!doc) return;
+    try { await motor.instantanea(); setHistorial((h) => [...h, { tipo: "estructura" }]); } catch { /* sin copia */ }
+  }
+
+  function docCambio(info: InfoDoc, nombreNuevo?: string) {
+    if (nombreNuevo) {
+      reiniciar();
+      setArchivo({ nombre: nombreNuevo });
+      listo(info);
+    } else {
+      setAnots({}); setSeleccion(null);
+      setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));
+      setDoc(info);
+    }
+    setCambios(true);
+  }
+
+  async function operarPagina(f: () => Promise<InfoDoc>) {
+    try { await preparar(); docCambio(await f()); }
+    catch (e) { console.error(e); avisar(T("Algo salió mal. Probá de nuevo."), "error"); }
+  }
+
+  // ---------- tareas: "¿Qué querés hacer?" y el buscador ----------
+  function conDocumento(f: () => void) {
+    if (doc) return f();
+    tareaPendiente.current = f;
+    abrirConDialogo().then((a) => { if (a) cargar(a); else tareaPendiente.current = null; });
+  }
+
+  function tarea(id: string) {
+    switch (id) {
+      case "firmar": return conDocumento(() => elegirHerramienta("firma"));
+      case "anotar": return conDocumento(() => elegirHerramienta("resaltar"));
+      case "censurar": return conDocumento(() => elegirHerramienta("censurar"));
+      case "escanear": return abrirEscaner();
+      case "unir": return setPanel({ inicial: "unir" });
+      case "achicar": return conDocumento(() => setPanel({ inicial: "comprimir" }));
+      case "proteger": return conDocumento(() => setPanel({ inicial: "clave" }));
+      case "a4": return conDocumento(() => setAjustando(true));
+      default: return setPanel({ inicial: null });
+    }
+  }
+
+  const SINONIMOS: Record<string, string> = {
+    firma: "firmar rubricar sign", resaltar: "marcar destacar", subrayar: "linea", tachar: "rayar", texto: "escribir agregar",
+    recuadro: "cuadro rectangulo", dibujar: "lapiz mano alzada flecha circulo", censurar: "tapar ocultar dni cbu privado",
+    seleccionar: "mover cursor", unir: "juntar combinar merge", dividir: "separar cortar partir split", extraer: "sacar copiar",
+    comprimir: "achicar reducir peso liviano whatsapp mail", clave: "proteger contrasena candado seguridad password",
+    marca: "sello borrador confidencial", numerar: "numero paginar", ajustar: "a4 tamano margenes carta",
+    imagenes: "jpg png foto", limpiar: "privacidad metadatos autor", escanear: "camara foto escaner",
+  };
+
+  function comandos(): Comando[] {
+    const lista: Comando[] = [];
+    if (doc) for (const h of HERRAMIENTAS)
+      lista.push({ id: "h-" + h.id, titulo: T(h.nombre), desc: T(h.ayuda), icono: h.icono, palabras: SINONIMOS[h.id], accion: () => elegirHerramienta(h.id) });
+    for (const h of LISTA)
+      lista.push({ id: "t-" + h.id, titulo: T(h.nombre), desc: T(h.desc), icono: h.icono, palabras: SINONIMOS[h.id], deshabilitado: !doc && !h.sinDoc,
+        accion: () => (h.id === "escanear" ? abrirEscaner() : h.id === "ajustar" ? setAjustando(true) : setPanel({ inicial: h.id })) });
+    lista.push(
+      { id: "abrir", titulo: T("Abrir"), icono: FolderOpen, palabras: "pdf archivo", accion: () => abrirConDialogo().then(cargar) },
+      { id: "guardar", titulo: T("Guardar"), icono: Save, palabras: "descargar exportar", deshabilitado: !doc, accion: () => guardar() },
+      { id: "deshacer", titulo: T("Deshacer"), icono: Undo2, palabras: "volver atras", deshabilitado: !historial.length, accion: deshacer },
+      { id: "a11y", titulo: T("Accesibilidad"), icono: Accessibility, palabras: "letra grande contraste voz movimiento", accion: () => setPanelA11y(true) },
+    );
+    return lista;
   }
 
   // ---------- páginas del mismo tamaño ----------
@@ -269,10 +381,11 @@ export default function App() {
     setAjustando(false);
     setOcupado(true);
     try {
+      await preparar();
       const r = await motor.ajustarPaginas(o.tamano, o.margen, o.orientacion);
       const { cambiadas, ...info } = r;
       // el contenido de las páginas cambió: se vuelve a dibujar todo
-      setAnots({}); setSeleccion(null); setHistorial([]);
+      setAnots({}); setSeleccion(null);
       setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));
       setDoc(info);
       if (cambiadas) {
@@ -304,6 +417,7 @@ export default function App() {
     setOcupado(true);
     try {
       const antes = doc?.paginas.length || 0;
+      if (anexar && doc) await preparar();
       const info = await motor.desdeImagenes(imagenes, anexar && !!doc);
       if (anexar && doc) {
         setDoc(info);
@@ -335,9 +449,13 @@ export default function App() {
       if (pendientes > 0) {
         const cambiadas = await motor.aplicarCensura();
         for (const i of cambiadas) await recargar(i);
-        setHistorial((h) => h.filter((p) => !cambiadas.includes(p.pagina)));
+        // la censura no se puede deshacer: se olvida el historial
+        setHistorial([]);
+        motor.olvidarInstantaneas().catch(() => {});
       }
-      const { datos } = await motor.guardar();
+      // si se abrió con contraseña y no se pidió quitarla, se vuelve a guardar con la misma
+      const opciones = guardado.clave || guardado.quitarClave || !claveOriginal.current ? guardado : { clave: claveOriginal.current };
+      const { datos } = await motor.guardar(opciones);
       const ok = await guardarConDialogo(datos, archivo.nombre, archivo.ruta);
       if (ok) {
         setCambios(false);
@@ -357,7 +475,8 @@ export default function App() {
     // si ya se abrió un PDF (por ejemplo con "Abrir con…"), saluda sin pedir que abras uno
     const t = setTimeout(() => labcin(tipsDados.current.has("abrir")
       ? "Elegí una herramienta de arriba. Si te equivocás, Ctrl+Z deshace."
-      : "¡Hola, soy Labcin! Abrí un PDF y te voy dando tips.", "saludo"), intro ? 2900 : 900);
+      : "¡Hola, soy Labcin! Abrí un PDF y te voy dando tips.", "saludo",
+      { texto: T("Opciones de accesibilidad"), fn: () => setPanelA11y(true) }), intro && !a11y.movimiento ? 2900 : 900);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labcin]);
@@ -373,18 +492,34 @@ export default function App() {
     function tecla(e: KeyboardEvent) {
       const escribiendo = (e.target as HTMLElement)?.closest("textarea, input");
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); abrirConDialogo().then(cargar); }
+      if (e.altKey && !mod && e.key.toLowerCase() === "a") { e.preventDefault(); setPanelA11y((v) => !v); }
+      else if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setPaleta((v) => !v); }
+      else if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); abrirConDialogo().then(cargar); }
       else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); guardar(); }
       else if (escribiendo) return;
       else if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); deshacer(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && seleccion) { e.preventDefault(); borrarSeleccion(); }
-      else if (e.key === "Escape") { setSeleccion(null); setHerramienta("seleccionar"); }
+      else if (e.key === "Escape") {
+        if (panel || panelA11y || ajustando || confirmarCensura !== null) { setPanel(null); setPanelA11y(false); setAjustando(false); setConfirmarCensura(null); }
+        else { setSeleccion(null); setHerramienta("seleccionar"); }
+      }
       else if (mod && (e.key === "+" || e.key === "=")) { e.preventDefault(); setZoom((z) => Math.min(z * 1.2, 5)); }
       else if (mod && e.key === "-") { e.preventDefault(); setZoom((z) => Math.max(z / 1.2, 0.2)); }
     }
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
   });
+
+  // al abrir una ventana, el foco va a su primer control (para teclado y lectores de pantalla)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const modales = document.querySelectorAll<HTMLElement>(".modal");
+      const m = modales[modales.length - 1];
+      if (!m || m.contains(document.activeElement)) return;
+      m.querySelector<HTMLElement>("[autofocus], input, select, textarea, button:not([disabled])")?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [panel, panelA11y, ajustando, confirmarCensura, modalFirma, pidiendoClave]);
 
   // avisar antes de cerrar con cambios sin guardar
   useEffect(() => {
@@ -446,10 +581,17 @@ export default function App() {
             <strong>Ozone PDF</strong>
             <span className="marca__archivo" title={archivo?.nombre}>
               {archivo ? archivo.nombre + (cambios ? " •" : "") : <>Pache<span className="marca__punto">.</span>Labs</>}
+              {guardado.clave && <Lock size={12} className="marca__candado" aria-label={T("Al guardar, el PDF queda con contraseña.")} />}
             </span>
           </div>
         </div>
         <div className="barra__acciones">
+          <button className="icono icono--barra" onClick={() => setPaleta(true)} title={T("Buscar herramienta") + " (Ctrl+K)"} aria-label={T("Buscar herramienta")}>
+            <Search size={19} />
+          </button>
+          <button className="icono icono--barra" onClick={() => setPanelA11y(true)} title={T("Accesibilidad") + " (Alt+A)"} aria-label={T("Accesibilidad")}>
+            <Accessibility size={20} />
+          </button>
           <label className="idioma" title={T("Idioma")}>
             <Languages size={17} aria-hidden />
             <select
@@ -460,8 +602,8 @@ export default function App() {
               {IDIOMAS.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
             </select>
           </label>
-          <button className="boton boton--suave" onClick={abrirEscaner} title={T("Escanear")}>
-            <Camera size={18} aria-hidden /> <span>{T("Escanear")}</span>
+          <button className="boton boton--suave" onClick={() => setPanel({ inicial: null })} title={T("Herramientas")}>
+            <LayoutGrid size={18} aria-hidden /> <span>{T("Herramientas")}</span>
           </button>
           <button className="boton boton--suave" onClick={() => abrirConDialogo().then(cargar)}>
             <FolderOpen size={18} aria-hidden /> <span>{T("Abrir")}</span>
@@ -542,7 +684,14 @@ export default function App() {
       )}
 
       <main className="cuerpo">
-        {doc && <Miniaturas paginas={doc.paginas} versiones={versiones} actual={actual} alElegir={irA} />}
+        {doc && (
+          <Miniaturas
+            paginas={doc.paginas} versiones={versiones} actual={actual} alElegir={irA}
+            alRotar={(i, g) => operarPagina(() => motor.rotarPagina(i, g))}
+            alBorrar={(i) => operarPagina(() => motor.borrarPaginas([i]))}
+            alMover={(de, a) => operarPagina(() => motor.moverPagina(de, a))}
+          />
+        )}
         <div className="vista" ref={vista} onScroll={alDesplazar}>
           {doc ? (
             <>
@@ -569,7 +718,7 @@ export default function App() {
               <p className="pie-vista">{T("Página {n} de {total}", { n: actual + 1, total: doc.paginas.length })}</p>
             </>
           ) : (
-            <Inicio alAbrir={() => abrirConDialogo().then(cargar)} alEscanear={abrirEscaner} />
+            <Inicio alAbrir={() => abrirConDialogo().then(cargar)} alEscanear={abrirEscaner} alTarea={tarea} />
           )}
         </div>
       </main>
@@ -602,10 +751,27 @@ export default function App() {
         </div>
       )}
 
+      {panel && (
+        <Herramientas
+          doc={doc} nombre={archivo?.nombre || "documento.pdf"} ruta={archivo?.ruta}
+          abiertoConClave={abiertoConClave} guardado={guardado} inicial={panel.inicial}
+          alCerrar={() => setPanel(null)}
+          alCambiarDoc={docCambio}
+          alPreparar={preparar}
+          alGuardado={(o) => { setGuardado(o); setCambios(true); }}
+          alAviso={avisar}
+          alEscanear={abrirEscaner}
+          alAjustar={() => setAjustando(true)}
+          alOcupado={setOcupado}
+        />
+      )}
       {escaner && <Escaner hayDocumento={!!doc} alCerrar={() => setEscaner(false)} alCrear={crearDesdeEscaneo} />}
       {ajustando && <AjustarPaginas alAceptar={(o) => ajustarPaginas(o)} alCancelar={() => setAjustando(false)} />}
 
-      <Labcin evento={eventoLabcin} />
+      {paleta && <Paleta comandos={comandos()} alCerrar={() => setPaleta(false)} />}
+      {panelA11y && <AccesibilidadPanel valor={a11y} alCambiar={cambiarA11y} alCerrar={() => setPanelA11y(false)} />}
+
+      <Labcin evento={eventoLabcin} voz={a11y.voz} />
 
       {intro && (
         <div className="intro" aria-hidden onClick={() => setIntro(false)}>
@@ -627,10 +793,21 @@ export default function App() {
   );
 }
 
-function Inicio({ alAbrir, alEscanear }: { alAbrir: () => void; alEscanear: () => void }) {
+const TAREAS: { id: string; icono: typeof Type; titulo: string }[] = [
+  { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
+  { id: "anotar", icono: Highlighter, titulo: "Resaltar y anotar" },
+  { id: "escanear", icono: Camera, titulo: "Escanear con la cámara" },
+  { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
+  { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
+  { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
+  { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
+  { id: "todas", icono: LayoutGrid, titulo: "Ver todas las herramientas" },
+];
+
+function Inicio({ alAbrir, alEscanear, alTarea }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void }) {
   const titulo = T("Abrí un PDF para empezar");
   return (
-    <section className="inicio">
+    <section className="inicio inicio--tareas">
       <div className="inicio__zona">
         <img src="/img/intro-avatar-solo.png" alt="" width={112} height={112} className="inicio__avatar" />
         <h1>{titulo}<span>.</span></h1>
@@ -643,14 +820,22 @@ function Inicio({ alAbrir, alEscanear }: { alAbrir: () => void; alEscanear: () =
             <Camera size={20} aria-hidden /> {T("Escanear")}
           </button>
         </div>
-        <ul className="inicio__chips">
-          <li><Signature size={15} aria-hidden /> {T("Firmar")}</li>
-          <li><Highlighter size={15} aria-hidden /> {T("Resaltar")}</li>
-          <li><Type size={15} aria-hidden /> {T("Texto")}</li>
-          <li><EyeOff size={15} aria-hidden /> {T("Censurar")}</li>
-        </ul>
       </div>
-      <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")}</p>
+      <h2 className="inicio__pregunta">{T("¿Qué querés hacer?")}</h2>
+      <ul className="tareas">
+        {TAREAS.map((t, i) => {
+          const I = t.icono;
+          return (
+            <li key={t.id} style={{ animationDelay: `${0.3 + i * 0.04}s` }}>
+              <button className="tarea" onClick={() => alTarea(t.id)}>
+                <span className="tarea__icono"><I size={22} aria-hidden /></span>
+                <span>{T(t.titulo)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")} · <kbd>Ctrl</kbd>+<kbd>K</kbd> {T("para buscar")}</p>
     </section>
   );
 }

@@ -9,6 +9,8 @@
   "use strict";
   var NS = "http://www.w3.org/2000/svg";
   var sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // también respeta la opción "Menos movimiento" de la app
+  function quieto() { return sinMovimiento || document.documentElement.classList.contains("a11y-sin-movimiento"); }
 
   // Silueta del frasco (vidrio). Las piezas rotas se recortan de esta misma forma.
   var VIDRIO = "M138,74 L138,160 L72,318 Q62,350 96,352 L224,352 Q258,350 248,318 L182,160 L182,74 Z";
@@ -422,7 +424,7 @@
     var toques = 0, romperDespues = false;
     function tocar() {
       if (ocupado) return;
-      if (sinMovimiento) { saludar(); return; }
+      if (quieto()) { saludar(); return; }
       if (riendo) {
         // si lo tocan de nuevo mientras se ríe, se rompe apenas se levanta
         if (toques >= 2) romperDespues = true;
@@ -442,7 +444,7 @@
 
     // festeja: salta con los brazos arriba y suelta brillos
     function festejar() {
-      if (ocupado || riendo || sinMovimiento) return Promise.resolve();
+      if (ocupado || riendo || quieto()) return Promise.resolve();
       brillos();
       anim(cuerpo, [{ transform: "translateY(0)" }, { transform: "translateY(4px) scale(1.05,.95)", offset: .15 },
         { transform: "translateY(-26px) scale(.96,1.05)", offset: .45 }, { transform: "translateY(2px) scale(1.04,.96)", offset: .75 },
@@ -453,7 +455,7 @@
     }
     // gesto corto al dar un tip
     function hablar() {
-      if (ocupado || riendo || sinMovimiento) return;
+      if (ocupado || riendo || quieto()) return;
       anim(cara, [{ transform: "rotate(0)" }, { transform: "rotate(-5deg)" }, { transform: "rotate(4deg)" }, { transform: "rotate(0)" }],
         { duration: 800, easing: "ease-in-out", fill: "none" });
       anim(brazoDer, [{ transform: "rotate(0)" }, { transform: "rotate(-60deg)", offset: .4 }, { transform: "rotate(-48deg)", offset: .6 }, { transform: "rotate(0)" }],

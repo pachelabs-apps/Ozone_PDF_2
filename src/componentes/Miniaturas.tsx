@@ -1,16 +1,44 @@
 import { useEffect, useRef, useState } from "react";
+import { RotateCcw, RotateCw, Trash2 } from "lucide-react";
 import { motor, type InfoPagina } from "../motor/motor";
+import { T } from "../i18n";
 
-export default function Miniaturas(p: {
+type Props = {
   paginas: InfoPagina[];
   versiones: Record<number, number>;
   actual: number;
   alElegir: (i: number) => void;
-}) {
+  alRotar: (i: number, grados: number) => void;
+  alBorrar: (i: number) => void;
+  alMover: (de: number, a: number) => void;
+};
+
+// Miniaturas de las páginas: tocá para ir, arrastrá para ordenar, y rotá o borrá cada una.
+export default function Miniaturas(p: Props) {
+  const [arrastrando, setArrastrando] = useState<number | null>(null);
+  const [destino, setDestino] = useState<number | null>(null);
   return (
-    <nav className="miniaturas" aria-label="Páginas">
+    <nav className="miniaturas" aria-label={T("Páginas")}>
       {p.paginas.map((info, i) => (
-        <Miniatura key={i} indice={i} info={info} version={p.versiones[i] || 0} activa={i === p.actual} alElegir={p.alElegir} />
+        <div
+          key={i}
+          className={"miniatura-env" + (destino === i && arrastrando !== null && arrastrando !== i ? (arrastrando > i ? " miniatura-env--antes" : " miniatura-env--despues") : "")
+            + (arrastrando === i ? " miniatura-env--arrastrada" : "")}
+          draggable
+          onDragStart={(e) => { setArrastrando(i); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); }}
+          onDragOver={(e) => { if (arrastrando === null) return; e.preventDefault(); setDestino(i); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (arrastrando !== null && arrastrando !== i) p.alMover(arrastrando, i); setArrastrando(null); setDestino(null); }}
+          onDragEnd={() => { setArrastrando(null); setDestino(null); }}
+        >
+          <Miniatura indice={i} info={info} version={p.versiones[i] || 0} activa={i === p.actual} alElegir={p.alElegir} />
+          <div className="miniatura__acciones">
+            <button onClick={() => p.alRotar(i, -90)} title={T("Rotar a la izquierda")} aria-label={T("Rotar a la izquierda")}><RotateCcw size={14} /></button>
+            <button onClick={() => p.alRotar(i, 90)} title={T("Rotar a la derecha")} aria-label={T("Rotar a la derecha")}><RotateCw size={14} /></button>
+            {p.paginas.length > 1 && (
+              <button onClick={() => p.alBorrar(i)} title={T("Borrar página")} aria-label={T("Borrar página")}><Trash2 size={14} /></button>
+            )}
+          </div>
+        </div>
       ))}
     </nav>
   );

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FlaskConical, X } from "lucide-react";
 import { montarLabcin, type LabcinApi } from "./labcin.js";
-import { T } from "../i18n";
+import { T, idioma } from "../i18n";
+import { hablar } from "../accesibilidad";
 
 export type EventoLabcin = { texto: string; tipo?: "saludo" | "festejo" | "tip"; n: number; accion?: { texto: string; fn: () => void } };
 
@@ -12,6 +13,7 @@ const TIPS_GENERALES = [
   "Con Ctrl + y Ctrl − hacés zoom.",
   "Elegí una herramienta de arriba. Si te equivocás, Ctrl+Z deshace.",
   "Si te sirvió Ozone PDF, podés invitarme un cafecito en pachelabs.net ☕",
+  "Si necesitás letra más grande o más contraste, tocá el botón de accesibilidad o apretá Alt+A.",
 ];
 
 function leer() {
@@ -22,7 +24,7 @@ function escribir(v: string | null) {
 }
 
 // Labcin, el asistente: se queda en una esquina y da tips según lo que estés haciendo.
-export default function Labcin({ evento }: { evento: EventoLabcin | null }) {
+export default function Labcin({ evento, voz }: { evento: EventoLabcin | null; voz: boolean }) {
   const caja = useRef<HTMLDivElement>(null);
   const api = useRef<LabcinApi | null>(null);
   const [oculto, setOculto] = useState(() => leer() === "oculto");
@@ -42,6 +44,7 @@ export default function Labcin({ evento }: { evento: EventoLabcin | null }) {
   function decir(texto: string, ms = 9000, acc?: EventoLabcin["accion"]) {
     setGlobo(texto);
     setAccion(acc);
+    if (voz) hablar(texto, idioma());
     programarCierre(ms);
   }
 
