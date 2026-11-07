@@ -882,3 +882,5 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
 .rapida__cafecito { margin: 8px 0 0; color: var(--tinta-suave); font-size: .9rem; }
 .rapida__cafecito a { color: var(--rojo); font-weight: 700; text-decoration: none; }
 .rapida__cafecito a:hover { text-decoration: underline; }
+.inicio__version { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 4px 6px; border-radius: 8px; color: var(--tinta-suave); font: inherit; font-size: .84rem; cursor: pointer; }
+.inicio__version:hover { color: var(--rojo); background: var(--rojo-claro); }

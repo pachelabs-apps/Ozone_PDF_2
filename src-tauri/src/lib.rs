@@ -9,6 +9,14 @@ fn archivo_inicial() -> Option<String> {
         .find(|a| a.to_lowercase().ends_with(".pdf"))
 }
 
+/// De dónde se instaló: "tienda" si es el paquete de Microsoft Store (las apps MSIX viven en
+/// WindowsApps y se actualizan solas), "directo" si vino del instalador de la página.
+#[tauri::command]
+fn origen_instalacion() -> String {
+    let ruta = std::env::current_exe().map(|p| p.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if ruta.contains("\\windowsapps\\") { "tienda".into() } else { "directo".into() }
+}
+
 /// Carpetas que OneDrive sincroniza con la nube, leídas del registro local de Windows
 /// (cuentas personales, de la organización y bibliotecas de SharePoint/Teams). No usa la red.
 #[cfg(windows)]
@@ -114,7 +122,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![archivo_inicial, carpeta_nube])
+        .invoke_handler(tauri::generate_handler![archivo_inicial, carpeta_nube, origen_instalacion])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar Ozone PDF");
 }

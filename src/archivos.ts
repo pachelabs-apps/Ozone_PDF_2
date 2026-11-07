@@ -238,3 +238,15 @@ export async function abrirImagenes(): Promise<Imagen[]> {
     input.click();
   });
 }
+
+// "Buscar actualizaciones": la app no se conecta. Si vino de Microsoft Store, la Store la actualiza;
+// si no, abre la página de descargas en el navegador con la versión instalada y la página compara.
+export async function origenInstalacion(): Promise<"tienda" | "directo" | "navegador"> {
+  if (!enApp) return "navegador";
+  try { const { invoke } = await import("@tauri-apps/api/core"); return await invoke<"tienda" | "directo">("origen_instalacion"); }
+  catch { return "directo"; }
+}
+export function paginaActualizaciones(idioma: string) {
+  const carpeta = idioma === "es" ? "" : `${idioma}/`;
+  return `https://pachelabs.net/${carpeta}ozone-pdf.html?version=${encodeURIComponent(__VERSION__)}#descargar`;
+}

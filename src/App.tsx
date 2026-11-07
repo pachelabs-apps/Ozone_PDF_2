@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, Sun, Moon, SunMoon,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
@@ -14,7 +14,7 @@ import { motor, type Anotacion, type InfoDoc, type Rect, type Seguridad } from "
 import Pagina, { type Accion, type Herramienta, type Seleccion } from "./componentes/Pagina";
 import Miniaturas from "./componentes/Miniaturas";
 import FirmaModal, { firmaGuardada, type Firma } from "./componentes/FirmaModal";
-import { protegerOriginal, abrirEnlace, abrirConDialogo, archivoInicial, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
+import { protegerOriginal, abrirEnlace, origenInstalacion, paginaActualizaciones, abrirConDialogo, archivoInicial, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
 import { T, IDIOMAS, idioma, cambiarIdioma, type Idioma } from "./i18n";
 import Labcin, { type EventoLabcin } from "./labcin/Labcin";
 
@@ -418,6 +418,7 @@ export default function App() {
       { id: "tema-claro", titulo: T("Tema claro"), icono: Sun, palabras: "modo blanco dia luz apariencia", accion: () => cambiarTema("claro") },
       { id: "tema-oscuro", titulo: T("Tema oscuro"), icono: Moon, palabras: "modo negro noche dark apariencia", accion: () => cambiarTema("oscuro") },
       { id: "tema-auto", titulo: T("Tema automático"), desc: T("Igual que el sistema"), icono: SunMoon, palabras: "modo sistema apariencia", accion: () => cambiarTema("auto") },
+      { id: "actualizar", titulo: T("Buscar actualizaciones"), desc: `Ozone PDF ${__VERSION__}`, icono: RefreshCw, palabras: "version nueva actualizar update", accion: () => buscarActualizaciones() },
       { id: "cerrar", titulo: T("Cerrar PDF"), desc: T("Volver al inicio"), icono: House, palabras: "salir menu inicio volver atras", deshabilitado: !doc, accion: () => cerrarDocumento() },
       { id: "guardar", titulo: T("Guardar"), icono: Save, palabras: "descargar exportar", deshabilitado: !doc, accion: () => guardar() },
       { id: "deshacer", titulo: T("Deshacer"), icono: Undo2, palabras: "volver atras", deshabilitado: !historial.length, accion: deshacer },
@@ -469,6 +470,15 @@ export default function App() {
     if (n % 3 === 1) labcin(T(texto) + " " + T("Si te sirvió, podés invitarme un cafecito ☕"), "festejo",
       { texto: T("Invitar un cafecito"), fn: () => abrirEnlace("https://cafecito.app/pachelabs") });
     else labcin(texto, "festejo");
+  }
+
+  async function buscarActualizaciones() {
+    if (await origenInstalacion() === "tienda") {
+      labcin(T("Tenés Ozone PDF {v} de Microsoft Store: se actualiza solo, no tenés que hacer nada.", { v: __VERSION__ }), "tip");
+      return;
+    }
+    abrirEnlace(paginaActualizaciones(idioma()));
+    avisar(T("Abrí la página de descargas en tu navegador: ahí te dice si hay una versión nueva."));
   }
 
   // herramientas rápidas: pantalla propia; si hay un PDF abierto, se ofrece ese
@@ -871,7 +881,7 @@ export default function App() {
               <p className="pie-vista">{T("Página {n} de {total}", { n: actual + 1, total: doc.paginas.length })}</p>
             </>
           ) : (
-            <Inicio alAbrir={() => abrirConDialogo().then(cargar)} alEscanear={abrirEscaner} alTarea={tarea} />
+            <Inicio alAbrir={() => abrirConDialogo().then(cargar)} alEscanear={abrirEscaner} alTarea={tarea} alActualizar={buscarActualizaciones} />
           )}
         </div>
       </main>
@@ -1022,7 +1032,7 @@ const EDITAR: Tarea[] = [
   { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
 ];
 
-function Inicio({ alAbrir, alEscanear, alTarea }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void }) {
+function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void; alActualizar: () => void }) {
   const titulo = T("Abrí un PDF para empezar");
   return (
     <section className="inicio inicio--tareas">
@@ -1063,6 +1073,9 @@ function Inicio({ alAbrir, alEscanear, alTarea }: { alAbrir: () => void; alEscan
         <a className="inicio__cafecito" href="https://cafecito.app/pachelabs" onClick={(e) => { e.preventDefault(); abrirEnlace("https://cafecito.app/pachelabs"); }}>
           <Coffee size={16} aria-hidden /> {T("Invitame un cafecito")}
         </a>
+        <button type="button" className="inicio__version" onClick={alActualizar} title={T("Buscar actualizaciones")}>
+          <RefreshCw size={14} aria-hidden /> v{__VERSION__} · {T("Buscar actualizaciones")}
+        </button>
       </footer>
     </section>
   );

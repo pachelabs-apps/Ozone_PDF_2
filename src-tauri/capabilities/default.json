@@ -41,6 +41,12 @@
         },
         {
           "url": "https://github.com/pachelabs-apps/*"
+        },
+        {
+          "url": "https://pachelabs.net/*?*#*"
+        },
+        {
+          "url": "https://pachelabs.net/*?*"
         }
       ]
     }
