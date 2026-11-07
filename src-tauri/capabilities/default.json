@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permisos mínimos: abrir y guardar los PDF que elige la persona. Sin red.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    { "identifier": "fs:allow-read-file", "allow": [{ "path": "**" }] },
+    { "identifier": "fs:allow-write-file", "allow": [{ "path": "**" }] }
+  ]
+}
