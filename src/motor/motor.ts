@@ -32,6 +32,12 @@ class Motor {
       this.pendientes.delete(m.id);
       m.ok ? p.ok(m.r) : p.mal(new Error(m.error));
     };
+    // si el Worker se cae (por ejemplo, sin memoria), no dejar operaciones esperando para siempre
+    this.w.onerror = (e) => {
+      e.preventDefault?.();
+      for (const p of this.pendientes.values()) p.mal(new Error("MOTOR"));
+      this.pendientes.clear();
+    };
   }
 
   private async pedir<T>(op: string, args?: any, transferir: Transferable[] = []): Promise<T> {

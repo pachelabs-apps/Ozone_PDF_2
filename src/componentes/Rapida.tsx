@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowUp, ArrowDown, X, FilePlus2, CheckCircle2, ShieldAlert,
 import { T } from "../i18n";
 import { motorAparte, type Seguridad } from "../motor/motor";
 import { LISTA, type IdHerramienta } from "./Herramientas";
-import { abrirVarios, abrirConDialogo, abrirImagenes, guardarArchivo, guardarVarios, base, type Abierto } from "../archivos";
+import { abrirEnlace, abrirVarios, abrirConDialogo, abrirImagenes, guardarArchivo, guardarVarios, base, type Abierto } from "../archivos";
 
 // Herramientas rápidas, como en Ozone PDF clásico: una pantalla propia donde se eligen o se sueltan
 // los archivos, se ven en una lista, se eligen las opciones y se genera un archivo nuevo.
@@ -48,6 +48,7 @@ export default function Rapida(p: {
   alAbrirResultado: (a: Abierto) => void;
   alAviso: (t: string, tipo?: "ok" | "error") => void;
   alOcupado: (b: boolean) => void;
+  alTerminado: (texto: string) => void;
 }) {
   const h = LISTA.find((x) => x.id === p.id)!;
   const varios = VARIOS.has(p.id);
@@ -69,7 +70,10 @@ export default function Rapida(p: {
 
   // revisa cada PDF al agregarlo: páginas, contraseña, firma y restricciones
   async function revisar(a: Archivo): Promise<Archivo> {
-    if (a.imagen) return a;
+    if (a.imagen) {
+      try { (await createImageBitmap(new Blob([a.datos as BlobPart]))).close(); return a; }
+      catch { return { ...a, error: T("No es una imagen que se pueda leer (JPG, PNG…).") }; }
+    }
     const m = motorAparte();
     try {
       await m.cerrar();
@@ -167,8 +171,14 @@ export default function Rapida(p: {
       };
       const m = motorAparte();
       if (p.id === "unir") {
+        const entradas: Uint8Array[] = [];
+        for (const x of archivos) {
+          if (!x.clave) { entradas.push(x.datos.slice()); continue; }
+          await abrirEnMotor(x);
+          entradas.push((await m.guardar({ quitarClave: true })).datos); // solo en memoria, para poder unirlo
+        }
         await m.cerrar();
-        await m.unir(archivos.map((x) => x.datos.slice()));
+        await m.unir(entradas);
         const { datos } = await m.guardar();
         r = await unPdf(datos, "unido", T("Listo: se unieron {n} archivos en uno.", { n: archivos.length }));
       } else if (p.id === "img2pdf") {
@@ -219,6 +229,7 @@ export default function Rapida(p: {
       await m.cerrar();
       if (!r) return;
       setResultado(r);
+      p.alTerminado(r.texto);
       if (abrirAlTerminar && r.pdf) p.alAbrirResultado({ nombre: r.pdf.nombre, datos: r.pdf.datos.slice().buffer, ruta: r.pdf.ruta });
     } catch (e: any) {
       console.error(e);
@@ -256,6 +267,9 @@ export default function Rapida(p: {
             <button className="boton boton--suave boton--grande" onClick={() => { setResultado(null); setArchivos([]); }}>{T("Hacer otro")}</button>
             <button className="boton boton--suave boton--grande" onClick={p.alVolver}>{T("Volver")}</button>
           </div>
+          <p className="rapida__cafecito">{T("¿Te sirvió? Ozone PDF es gratis y lo hago en mis ratos libres.")}{" "}
+            <a href="https://cafecito.app/pachelabs" onClick={(e) => { e.preventDefault(); abrirEnlace("https://cafecito.app/pachelabs"); }}>☕ {T("Invitame un cafecito")}</a>
+          </p>
         </div>
       ) : (
         <div className="rapida__cuerpo">

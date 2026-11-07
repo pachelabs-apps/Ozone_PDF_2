@@ -462,11 +462,22 @@ export default function App() {
     setEscaner(true);
   }
 
+  // al terminar algo, Labcin festeja; de vez en cuando (1 de cada 3) recuerda el cafecito
+  function agradecer(texto: string) {
+    let n = 0;
+    try { n = Number(localStorage.getItem("ozone.terminados") || "0") + 1; localStorage.setItem("ozone.terminados", String(n)); } catch { /* nada */ }
+    if (n % 3 === 1) labcin(T(texto) + " " + T("Si te sirvió, podés invitarme un cafecito ☕"), "festejo",
+      { texto: T("Invitar un cafecito"), fn: () => abrirEnlace("https://cafecito.app/pachelabs") });
+    else labcin(texto, "festejo");
+  }
+
   // herramientas rápidas: pantalla propia; si hay un PDF abierto, se ofrece ese
   async function abrirRapida(id: IdHerramienta) {
     if (id === "escanear") return abrirEscaner();
     let inicial: Abierto | null = null;
     if (doc && archivo && id !== "img2pdf") {
+      // con zonas para censurar sin aplicar, la copia saldría con los datos debajo: primero hay que guardar
+      if (await motor.censurasPendientes().catch(() => 0) > 0) { avisar(T("Primero guardá el PDF para que se aplique la censura."), "error"); return; }
       try {
         const datos = !cambios && datosAbiertos.current ? datosAbiertos.current.slice(0) : (await motor.guardar(claveOriginal.current ? { clave: claveOriginal.current } : {})).datos.slice().buffer;
         inicial = { nombre: archivo.nombre, datos, ruta: archivo.ruta };
@@ -528,7 +539,7 @@ export default function App() {
         setCambios(false);
         avisar(T("Guardado ✓"), "ok");
         if (cerrarDespues.current) { cerrarDespues.current = false; cerrarDocumento(true); }
-        else labcin("¡Listo! Tu PDF quedó guardado.", "festejo");
+        else agradecer("¡Listo! Tu PDF quedó guardado.");
       } else cerrarDespues.current = false;
     } catch (e) {
       cerrarDespues.current = false;
@@ -833,7 +844,8 @@ export default function App() {
           {rapida ? (
             <Rapida key={rapida.id} id={rapida.id} inicial={rapida.inicial} alAviso={avisar} alOcupado={setOcupado}
               alVolver={() => setRapida(null)}
-              alAbrirResultado={(a) => { setRapida(null); cargar(a); }} />
+              alAbrirResultado={(a) => { setRapida(null); cargar(a); }}
+              alTerminado={(t) => agradecer(t)} />
           ) : doc ? (
             <>
               <p className={"ayuda" + (herramienta === "censurar" ? " ayuda--censura" : "")}>{T(ayuda)}</p>

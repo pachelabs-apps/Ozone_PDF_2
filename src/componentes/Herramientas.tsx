@@ -102,10 +102,17 @@ export default function Herramientas(p: Props) {
 
 
   const busca = normalizar(q.trim());
-  const filtradas = !busca ? LISTA : LISTA.filter((h) => {
-    const texto = normalizar(`${T(h.nombre)} ${T(h.desc)} ${h.nombre} ${h.palabras || ""}`);
-    return busca.split(/\s+/).every((w) => texto.includes(w));
-  });
+  // primero las que empiezan con lo buscado, después las que lo tienen en el nombre, después el resto
+  const filtradas = !busca ? LISTA : LISTA
+    .map((h) => {
+      const titulo = normalizar(`${T(h.nombre)} ${h.nombre}`);
+      const texto = normalizar(`${T(h.nombre)} ${T(h.desc)} ${h.nombre} ${h.palabras || ""}`);
+      const puntos = normalizar(T(h.nombre)).startsWith(busca) ? 3 : titulo.includes(busca) ? 2 : busca.split(/\s+/).every((w) => texto.includes(w)) ? 1 : 0;
+      return { h, puntos };
+    })
+    .filter((x) => x.puntos > 0)
+    .sort((a, b) => b.puntos - a.puntos)
+    .map((x) => x.h);
 
   if (abierta) {
     const h = LISTA.find((x) => x.id === abierta)!;
