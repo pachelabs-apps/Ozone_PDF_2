@@ -4,3 +4,6 @@ src-tauri/target/
 src-tauri/gen/schemas/
 *.log
 .DS_Store
+
+# capturas de prueba
+/*.png

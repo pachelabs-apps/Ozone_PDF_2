@@ -9,6 +9,7 @@ import Miniaturas from "./componentes/Miniaturas";
 import FirmaModal, { firmaGuardada, type Firma } from "./componentes/FirmaModal";
 import { abrirConDialogo, archivoInicial, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
 import { T, IDIOMAS, idioma, cambiarIdioma, type Idioma } from "./i18n";
+import Labcin, { type EventoLabcin } from "./labcin/Labcin";
 
 const COLORES: { id: string; css: string; rgb: number[] }[] = [
   { id: "rojo", css: "#D3261D", rgb: [0.83, 0.15, 0.11] },
@@ -36,6 +37,19 @@ const HERRAMIENTAS: { id: Herramienta; icono: typeof Type; nombre: string; ayuda
   { id: "censurar", icono: EyeOff, nombre: "Censurar", ayuda: "Marcá lo que querés ocultar. Se borra de verdad al guardar." },
 ];
 
+// Tip que da Labcin la primera vez que se elige cada herramienta.
+const TIP_HERRAMIENTA: Partial<Record<Herramienta, string>> = {
+  seleccionar: "Tocá una anotación para moverla. Con Supr la borrás.",
+  resaltar: "Arrastrá sobre el texto como si lo seleccionaras. Si no marca nada, puede ser un PDF escaneado.",
+  subrayar: "Arrastrá sobre el texto como si lo seleccionaras. Si no marca nada, puede ser un PDF escaneado.",
+  tachar: "Arrastrá sobre el texto como si lo seleccionaras. Si no marca nada, puede ser un PDF escaneado.",
+  texto: "Escribí y tocá afuera para terminar. Ctrl+Enter también sirve.",
+  recuadro: "Ideal para destacar una zona. El color lo elegís en la barra.",
+  dibujar: "Perfecto para un círculo o una flecha rápida.",
+  firma: "Tu firma queda guardada solo en este equipo. Después de ponerla, la agrandás desde la esquina.",
+  censurar: "Ojo: la censura borra de verdad lo que está debajo al guardar. Ideal para DNI, CBU o direcciones.",
+};
+
 const CON_COLOR = new Set<Herramienta>(["subrayar", "tachar", "texto", "recuadro", "dibujar"]);
 
 export default function App() {
@@ -60,7 +74,18 @@ export default function App() {
   const [actual, setActual] = useState(0);
   const [arrastrandoArchivo, setArrastrandoArchivo] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  const [intro, setIntro] = useState(() => !window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  useEffect(() => {
+    if (!intro) return;
+    const t = setTimeout(() => setIntro(false), 2750);
+    return () => clearTimeout(t);
+  }, [intro]);
   const vista = useRef<HTMLDivElement>(null);
+  const [eventoLabcin, setEventoLabcin] = useState<EventoLabcin | null>(null);
+  const tipsDados = useRef(new Set<string>());
+  const labcin = useCallback((texto: string, tipo?: EventoLabcin["tipo"]) => {
+    setEventoLabcin((e) => ({ texto: T(texto), tipo, n: (e?.n || 0) + 1 }));
+  }, []);
   const visibles = useRef(new Set<number>());
 
   const avisar = useCallback((texto: string, tipo?: "error" | "ok") => {
@@ -104,6 +129,13 @@ export default function App() {
   function listo(info: InfoDoc) {
     setDoc(info);
     setPidiendoClave(null);
+    if (!tipsDados.current.has("abrir")) {
+      tipsDados.current.add("abrir");
+      const celular = window.matchMedia("(max-width: 760px)").matches;
+      setTimeout(() => labcin(celular
+        ? "Elegí una herramienta de abajo. Si te equivocás, tocá deshacer."
+        : "Elegí una herramienta de arriba. Si te equivocás, Ctrl+Z deshace."), 600);
+    }
     requestAnimationFrame(() => {
       ajustarAncho(info);
       vista.current?.scrollTo({ top: 0 });
@@ -242,6 +274,7 @@ export default function App() {
       if (ok) {
         setCambios(false);
         avisar(T("Guardado ✓"), "ok");
+        labcin("¡Listo! Tu PDF quedó guardado.", "festejo");
       }
     } catch (e) {
       console.error(e);
@@ -250,6 +283,16 @@ export default function App() {
       setOcupado(false);
     }
   }
+
+  // Labcin saluda al abrir la app
+  useEffect(() => {
+    // si ya se abrió un PDF (por ejemplo con "Abrir con…"), saluda sin pedir que abras uno
+    const t = setTimeout(() => labcin(tipsDados.current.has("abrir")
+      ? "Elegí una herramienta de arriba. Si te equivocás, Ctrl+Z deshace."
+      : "¡Hola, soy Labcin! Abrí un PDF y te voy dando tips.", "saludo"), intro ? 2900 : 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labcin]);
 
   // abrir el PDF con el que se lanzó la app ("Abrir con… Ozone PDF")
   useEffect(() => {
@@ -303,6 +346,11 @@ export default function App() {
     setTextoAbierto(null);
     if (h === "firma" && !firma) setModalFirma(true);
     setHerramienta(h);
+    const tip = TIP_HERRAMIENTA[h];
+    if (tip && !tipsDados.current.has(h)) {
+      tipsDados.current.add(h);
+      labcin(tip);
+    }
   }
 
   const ayuda = HERRAMIENTAS.find((h) => h.id === herramienta)!.ayuda;
@@ -313,7 +361,7 @@ export default function App() {
 
   return (
     <div
-      className={"app" + (arrastrandoArchivo ? " app--soltando" : "")}
+      className={"app" + (arrastrandoArchivo ? " app--soltando" : "") + (intro ? " con-intro" : "") + (doc ? " con-doc" : "")}
       onDragOver={(e) => { e.preventDefault(); setArrastrandoArchivo(true); }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setArrastrandoArchivo(false); }}
       onDrop={async (e) => {
@@ -325,10 +373,12 @@ export default function App() {
     >
       <header className="barra">
         <div className="marca">
-          <img src="/icono.png" alt="" width={30} height={30} />
+          <img className="marca__logo" src="/img/marca.png" alt="" width={34} height={34} />
           <div className="marca__texto">
             <strong>Ozone PDF</strong>
-            <span className="marca__archivo" title={archivo?.nombre}>{archivo ? archivo.nombre + (cambios ? " •" : "") : "Pache Labs"}</span>
+            <span className="marca__archivo" title={archivo?.nombre}>
+              {archivo ? archivo.nombre + (cambios ? " •" : "") : <>Pache<span className="marca__punto">.</span>Labs</>}
+            </span>
           </div>
         </div>
         <div className="barra__acciones">
@@ -478,6 +528,22 @@ export default function App() {
         </div>
       )}
 
+      <Labcin evento={eventoLabcin} />
+
+      {intro && (
+        <div className="intro" aria-hidden onClick={() => setIntro(false)}>
+          <div className="intro__marca">
+            <div className="intro__frasco">
+              <img src="/img/intro-avatar-solo.png" alt="" width={140} height={140} />
+              <span className="burbuja b1" /><span className="burbuja b2" /><span className="burbuja b3" />
+              <span className="burbuja b4">&lt;&gt;</span>
+            </div>
+            <p className="intro__nombre">Ozone<span>.</span>PDF</p>
+            <p className="intro__de">Pache Labs</p>
+          </div>
+        </div>
+      )}
+
       {aviso && <div className={"aviso" + (aviso.tipo ? ` aviso--${aviso.tipo}` : "")} role="status">{aviso.texto}</div>}
       {ocupado && <div className="cargando" aria-hidden><span /></div>}
     </div>
@@ -485,14 +551,23 @@ export default function App() {
 }
 
 function Inicio({ alAbrir }: { alAbrir: () => void }) {
+  const titulo = T("Abrí un PDF para empezar");
   return (
     <section className="inicio">
-      <img src="/icono.png" alt="" width={88} height={88} className="inicio__icono" />
-      <h1>{T("Abrí un PDF para empezar")}</h1>
-      <p>{T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
-      <button className="boton boton--primario boton--grande" onClick={alAbrir}>
-        <FolderOpen size={20} aria-hidden /> {T("Elegir PDF")}
-      </button>
+      <div className="inicio__zona">
+        <img src="/img/intro-avatar-solo.png" alt="" width={112} height={112} className="inicio__avatar" />
+        <h1>{titulo}<span>.</span></h1>
+        <p>{T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
+        <button className="boton boton--primario boton--grande" onClick={alAbrir}>
+          <FolderOpen size={20} aria-hidden /> {T("Elegir PDF")}
+        </button>
+        <ul className="inicio__chips">
+          <li><Signature size={15} aria-hidden /> {T("Firmar")}</li>
+          <li><Highlighter size={15} aria-hidden /> {T("Resaltar")}</li>
+          <li><Type size={15} aria-hidden /> {T("Texto")}</li>
+          <li><EyeOff size={15} aria-hidden /> {T("Censurar")}</li>
+        </ul>
+      </div>
       <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")}</p>
     </section>
   );
