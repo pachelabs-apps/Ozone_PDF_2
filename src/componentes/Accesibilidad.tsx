@@ -1,6 +1,6 @@
 import { Accessibility, X } from "lucide-react";
 import { T, idioma } from "../i18n";
-import { hablar, hayVoz, type A11y } from "../accesibilidad";
+import { hablar, hayVoz, mejorVoz, type A11y } from "../accesibilidad";
 
 export default function Accesibilidad(p: { valor: A11y; alCambiar: (a: A11y) => void; alCerrar: () => void }) {
   const a = p.valor;
@@ -39,6 +39,15 @@ export default function Accesibilidad(p: { valor: A11y; alCambiar: (a: A11y) => 
           {interruptor("movimiento", "Menos movimiento", "Sin animaciones ni saltos.")}
           {interruptor("espaciado", "Texto más espaciado", "Más aire entre letras y renglones.")}
           {hayVoz() && interruptor("voz", "Labcin lee en voz alta", "Escuchá los tips y avisos.")}
+          {hayVoz() && a.voz && (() => {
+            const v = mejorVoz(idioma());
+            return (
+              <p className="modal__ayuda voz-info">
+                {v ? <>{T("Voz: {v}", { v: v.name.replace(/^Microsoft\s+/, "").replace(/\s*-\s*.*$/, "") })} · </> : <>{T("No hay ninguna voz instalada para este idioma.")} </>}
+                {v && <button type="button" className="enlace" onClick={() => hablar(T("¡Hola! Soy Labcin. Así suena mi voz."), idioma())}>{T("Probar voz")}</button>}
+              </p>
+            );
+          })()}
         </div>
         <p className="modal__ayuda a11y-atajos">{T("Atajos: Ctrl+O abrir · Ctrl+S guardar · Ctrl+Z deshacer · Supr borrar · Esc cancelar · Alt+A accesibilidad")}</p>
       </div>
