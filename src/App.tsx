@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling,
 } from "lucide-react";
+import Escaner from "./escaner/Escaner";
+import AjustarPaginas, { type OpcionesAjuste } from "./componentes/AjustarPaginas";
 import { motor, type Anotacion, type InfoDoc, type Rect } from "./motor/motor";
 import Pagina, { type Accion, type Herramienta, type Seleccion } from "./componentes/Pagina";
 import Miniaturas from "./componentes/Miniaturas";
@@ -83,9 +85,11 @@ export default function App() {
   const vista = useRef<HTMLDivElement>(null);
   const [eventoLabcin, setEventoLabcin] = useState<EventoLabcin | null>(null);
   const tipsDados = useRef(new Set<string>());
-  const labcin = useCallback((texto: string, tipo?: EventoLabcin["tipo"]) => {
-    setEventoLabcin((e) => ({ texto: T(texto), tipo, n: (e?.n || 0) + 1 }));
+  const labcin = useCallback((texto: string, tipo?: EventoLabcin["tipo"], accion?: EventoLabcin["accion"]) => {
+    setEventoLabcin((e) => ({ texto: T(texto), tipo, accion, n: (e?.n || 0) + 1 }));
   }, []);
+  const [escaner, setEscaner] = useState(false);
+  const [ajustando, setAjustando] = useState(false);
   const visibles = useRef(new Set<number>());
 
   const avisar = useCallback((texto: string, tipo?: "error" | "ok") => {
@@ -129,6 +133,10 @@ export default function App() {
   function listo(info: InfoDoc) {
     setDoc(info);
     setPidiendoClave(null);
+    motor.tamanosMezclados().then((mezcla) => {
+      if (mezcla) setTimeout(() => labcin("Este PDF tiene páginas de distintos tamaños. Si querés, las paso todas a A4.", "tip",
+        { texto: T("Pasar todo a A4"), fn: () => ajustarPaginas({ tamano: "a4", margen: 0, orientacion: "auto" }, true) }), 900);
+    }).catch(() => {});
     if (!tipsDados.current.has("abrir")) {
       tipsDados.current.add("abrir");
       const celular = window.matchMedia("(max-width: 760px)").matches;
@@ -254,6 +262,66 @@ export default function App() {
     setHistorial((h) => h.filter((p) => !(p.pagina === s.pagina && p.id === s.id)));
     setCambios(true);
     await recargar(s.pagina);
+  }
+
+  // ---------- páginas del mismo tamaño ----------
+  async function ajustarPaginas(o: OpcionesAjuste, desdeLabcin = false) {
+    setAjustando(false);
+    setOcupado(true);
+    try {
+      const r = await motor.ajustarPaginas(o.tamano, o.margen, o.orientacion);
+      const { cambiadas, ...info } = r;
+      // el contenido de las páginas cambió: se vuelve a dibujar todo
+      setAnots({}); setSeleccion(null); setHistorial([]);
+      setVersiones((v) => Object.fromEntries(info.paginas.map((_, i) => [i, (v[i] || 0) + 1])));
+      setDoc(info);
+      if (cambiadas) {
+        setCambios(true);
+        if (desdeLabcin) labcin("¡Listo! Todas las páginas quedaron en A4.", "festejo");
+        else avisar(T("Listo: {n} páginas ajustadas.", { n: cambiadas }), "ok");
+        requestAnimationFrame(() => ajustarAncho(info));
+      } else avisar(T("Las páginas ya tenían ese tamaño."));
+    } catch (e) {
+      console.error(e);
+      avisar(T("No se pudo guardar."), "error");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  // ---------- escáner ----------
+  function abrirEscaner() {
+    if (!tipsDados.current.has("escaner")) {
+      tipsDados.current.add("escaner");
+      setTimeout(() => labcin("Apoyá la hoja sobre algo oscuro: así encuentro mejor los bordes. Elegí “Blanco y negro” para que quede como escáner."), 500);
+    }
+    setEscaner(true);
+  }
+
+  async function crearDesdeEscaneo(imagenes: Uint8Array[], anexar: boolean) {
+    if (!anexar && cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
+    setEscaner(false);
+    setOcupado(true);
+    try {
+      const antes = doc?.paginas.length || 0;
+      const info = await motor.desdeImagenes(imagenes, anexar && !!doc);
+      if (anexar && doc) {
+        setDoc(info);
+        setCambios(true);
+        setTimeout(() => irA(antes), 300);
+      } else {
+        const hoy = new Date().toISOString().slice(0, 10);
+        setArchivo({ nombre: `${T("Escaneo")} ${hoy}.pdf` });
+        reiniciar();
+        listo(info);
+        setCambios(true);
+      }
+    } catch (e) {
+      console.error(e);
+      avisar(T("No se pudo guardar."), "error");
+    } finally {
+      setOcupado(false);
+    }
   }
 
   // ---------- guardar ----------
@@ -392,6 +460,9 @@ export default function App() {
               {IDIOMAS.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
             </select>
           </label>
+          <button className="boton boton--suave" onClick={abrirEscaner} title={T("Escanear")}>
+            <Camera size={18} aria-hidden /> <span>{T("Escanear")}</span>
+          </button>
           <button className="boton boton--suave" onClick={() => abrirConDialogo().then(cargar)}>
             <FolderOpen size={18} aria-hidden /> <span>{T("Abrir")}</span>
           </button>
@@ -454,6 +525,9 @@ export default function App() {
             )}
             </div>
             <div className="herramientas__vista">
+            <button className="icono" onClick={() => setAjustando(true)} title={T("Ajustar páginas")} aria-label={T("Ajustar páginas")}>
+              <Scaling size={18} />
+            </button>
             <button className="icono" onClick={deshacer} disabled={!historial.length} title={T("Deshacer")} aria-label={T("Deshacer")}>
               <Undo2 size={18} />
             </button>
@@ -495,7 +569,7 @@ export default function App() {
               <p className="pie-vista">{T("Página {n} de {total}", { n: actual + 1, total: doc.paginas.length })}</p>
             </>
           ) : (
-            <Inicio alAbrir={() => abrirConDialogo().then(cargar)} />
+            <Inicio alAbrir={() => abrirConDialogo().then(cargar)} alEscanear={abrirEscaner} />
           )}
         </div>
       </main>
@@ -528,6 +602,9 @@ export default function App() {
         </div>
       )}
 
+      {escaner && <Escaner hayDocumento={!!doc} alCerrar={() => setEscaner(false)} alCrear={crearDesdeEscaneo} />}
+      {ajustando && <AjustarPaginas alAceptar={(o) => ajustarPaginas(o)} alCancelar={() => setAjustando(false)} />}
+
       <Labcin evento={eventoLabcin} />
 
       {intro && (
@@ -550,7 +627,7 @@ export default function App() {
   );
 }
 
-function Inicio({ alAbrir }: { alAbrir: () => void }) {
+function Inicio({ alAbrir, alEscanear }: { alAbrir: () => void; alEscanear: () => void }) {
   const titulo = T("Abrí un PDF para empezar");
   return (
     <section className="inicio">
@@ -558,9 +635,14 @@ function Inicio({ alAbrir }: { alAbrir: () => void }) {
         <img src="/img/intro-avatar-solo.png" alt="" width={112} height={112} className="inicio__avatar" />
         <h1>{titulo}<span>.</span></h1>
         <p>{T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
-        <button className="boton boton--primario boton--grande" onClick={alAbrir}>
-          <FolderOpen size={20} aria-hidden /> {T("Elegir PDF")}
-        </button>
+        <div className="inicio__botones">
+          <button className="boton boton--primario boton--grande" onClick={alAbrir}>
+            <FolderOpen size={20} aria-hidden /> {T("Elegir PDF")}
+          </button>
+          <button className="boton boton--suave boton--grande" onClick={alEscanear}>
+            <Camera size={20} aria-hidden /> {T("Escanear")}
+          </button>
+        </div>
         <ul className="inicio__chips">
           <li><Signature size={15} aria-hidden /> {T("Firmar")}</li>
           <li><Highlighter size={15} aria-hidden /> {T("Resaltar")}</li>

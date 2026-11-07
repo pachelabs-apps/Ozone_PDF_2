@@ -3,7 +3,7 @@ import { FlaskConical, X } from "lucide-react";
 import { montarLabcin, type LabcinApi } from "./labcin.js";
 import { T } from "../i18n";
 
-export type EventoLabcin = { texto: string; tipo?: "saludo" | "festejo" | "tip"; n: number };
+export type EventoLabcin = { texto: string; tipo?: "saludo" | "festejo" | "tip"; n: number; accion?: { texto: string; fn: () => void } };
 
 const CLAVE = "ozone.labcin";
 const TIPS_GENERALES = [
@@ -27,6 +27,7 @@ export default function Labcin({ evento }: { evento: EventoLabcin | null }) {
   const api = useRef<LabcinApi | null>(null);
   const [oculto, setOculto] = useState(() => leer() === "oculto");
   const [globo, setGlobo] = useState<string | null>(null);
+  const [accion, setAccion] = useState<EventoLabcin["accion"]>(undefined);
   const toques = useRef(0);
   const indice = useRef(0);
   const reloj = useRef<number | undefined>(undefined);
@@ -38,8 +39,9 @@ export default function Labcin({ evento }: { evento: EventoLabcin | null }) {
     reloj.current = window.setTimeout(() => { if (!encima.current) setGlobo(null); }, ms);
   }
 
-  function decir(texto: string, ms = 9000) {
+  function decir(texto: string, ms = 9000, acc?: EventoLabcin["accion"]) {
     setGlobo(texto);
+    setAccion(acc);
     programarCierre(ms);
   }
 
@@ -75,7 +77,7 @@ export default function Labcin({ evento }: { evento: EventoLabcin | null }) {
   // reaccionar a lo que pasa en la app
   useEffect(() => {
     if (!evento || oculto) return;
-    decir(evento.texto, evento.tipo === "saludo" ? 10000 : 9000);
+    decir(evento.texto, evento.accion ? 16000 : evento.tipo === "saludo" ? 10000 : 9000, evento.accion);
     const a = api.current;
     if (!a) return;
     if (evento.tipo === "saludo") a.saludar();
@@ -112,7 +114,11 @@ export default function Labcin({ evento }: { evento: EventoLabcin | null }) {
           </button>
           <p>{globo}</p>
           <div className="labcin-app__acciones">
-            <button onClick={otroTip}>{T("Otro tip")}</button>
+            {accion ? (
+              <button className="labcin-app__accion" onClick={() => { accion.fn(); setGlobo(null); setAccion(undefined); }}>{accion.texto}</button>
+            ) : (
+              <button onClick={otroTip}>{T("Otro tip")}</button>
+            )}
             <button className="labcin-app__ocultar" onClick={() => { escribir("oculto"); setGlobo(null); setOculto(true); }}>
               {T("Ocultar a Labcin")}
             </button>

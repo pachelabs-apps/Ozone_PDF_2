@@ -81,6 +81,15 @@ class Motor {
   borrar(pagina: number, id: number) {
     return this.pedir<boolean>("borrar", { pagina, id });
   }
+  ajustarPaginas(tamano: string, margen: number, orientacion: string) {
+    return this.pedir<InfoDoc & { cambiadas: number }>("ajustarPaginas", { tamano, margen, orientacion });
+  }
+  desdeImagenes(imagenes: Uint8Array[], anexar: boolean) {
+    return this.pedir<InfoDoc>("desdeImagenes", { imagenes, anexar }, imagenes.map((i) => i.buffer as ArrayBuffer));
+  }
+  tamanosMezclados() {
+    return this.pedir<boolean>("tamanosMezclados");
+  }
   guardar() {
     return this.pedir<{ datos: Uint8Array }>("guardar");
   }

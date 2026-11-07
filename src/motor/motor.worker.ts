@@ -1,6 +1,8 @@
 // Motor PDF de Ozone PDF 2. Corre en un Worker aparte para que la pantalla no se trabe.
 // Todo sucede en el dispositivo: este código no hace ninguna conexión de red.
 import * as mupdf from "mupdf";
+// @ts-ignore módulo JS propio
+import { ajustarPaginas, agregarImagenes } from "./paginas.js";
 
 type Punto = [number, number];
 type Rect = [number, number, number, number];
@@ -205,6 +207,33 @@ const ops: Record<string, (a: any) => any> = {
     const datos = new Uint8Array(buf.asUint8Array());
     buf.destroy();
     return { datos, __transferir: [datos.buffer] };
+  },
+
+  // Deja todas las páginas del mismo tamaño (A4 o Carta), con márgenes opcionales.
+  ajustarPaginas({ tamano, margen, orientacion }: { tamano: string; margen: number; orientacion: string }) {
+    const n = ajustarPaginas(mupdf, documento(), { tamano, margen, orientacion });
+    return { cambiadas: n, ...info() };
+  },
+
+  // Crea un PDF nuevo con fotos escaneadas, o las agrega al final del abierto.
+  desdeImagenes({ imagenes, anexar, tamano }: { imagenes: Uint8Array[]; anexar: boolean; tamano?: string }) {
+    if (!anexar || !doc) {
+      doc?.destroy();
+      doc = new mupdf.PDFDocument();
+    }
+    agregarImagenes(mupdf, doc, imagenes, { tamano: tamano || "a4", margen: 0 });
+    return info();
+  },
+
+  // ¿Las páginas tienen tamaños muy distintos entre sí?
+  tamanosMezclados() {
+    const d = documento();
+    const areas: number[] = [];
+    for (let i = 0; i < d.countPages(); i++) {
+      const b = d.loadPage(i).getBounds();
+      areas.push((b[2] - b[0]) * (b[3] - b[1]));
+    }
+    return areas.length > 1 && Math.max(...areas) / Math.min(...areas) > 1.6;
   },
 
   cerrar() {
