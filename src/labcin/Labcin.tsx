@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FlaskConical, X } from "lucide-react";
-import { montarLabcin, type LabcinApi } from "./labcin.js";
+import { montarLabcin, type LabcinApi } from "./personaje.js";
 import { T, idioma } from "../i18n";
 import { hablar } from "../accesibilidad";
 

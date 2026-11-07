@@ -26,6 +26,27 @@ if errorlevel 1 (
 )
 for /f "delims=" %%v in ('cargo -V') do echo  [OK] %%v
 
+rem --- 3. Herramientas de C++ de Visual Studio (el "linker" que arma el .exe) ---
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+set "VCOK="
+if exist "%VSWHERE%" (
+  for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCOK=1"
+)
+if not defined VCOK (
+  echo  [FALTA] Herramientas de compilacion de C++ de Visual Studio.
+  echo.
+  echo          1. Abri https://visualstudio.microsoft.com/es/visual-cpp-build-tools/
+  echo             y baja "Build Tools para Visual Studio".
+  echo          2. En el instalador tilda "Desarrollo para el escritorio con C++".
+  echo             ^(deja marcados "MSVC" y "Windows 11 SDK", que vienen por defecto^)
+  echo          3. Instala ^(unos 6 GB^), reinicia la compu y volve a abrir este archivo.
+  echo.
+  echo          Atajo: en una terminal podes pegar
+  echo          winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+  goto :fin
+)
+echo  [OK] Herramientas de C++ de Visual Studio
+
 echo.
 echo  [1/2] Instalando dependencias (la primera vez tarda unos minutos)...
 call npm install --no-fund --no-audit
