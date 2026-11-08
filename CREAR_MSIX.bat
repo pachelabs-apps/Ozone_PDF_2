@@ -40,7 +40,7 @@ set "EDITOR_VISIBLE="
 for /f "usebackq delims=" %%L in ("msix_identidad.txt") do (
   if not defined NOMBRE (set "NOMBRE=%%L") else if not defined EDITOR (set "EDITOR=%%L") else if not defined EDITOR_VISIBLE set "EDITOR_VISIBLE=%%L"
 )
-if not defined EDITOR_VISIBLE set "EDITOR_VISIBLE=PacheLab"
+if not defined EDITOR_VISIBLE set "EDITOR_VISIBLE=PacheLabs"
 echo !NOMBRE!!EDITOR! | findstr /c:"PEGAR-ACA" >nul
 if not errorlevel 1 (
   echo  Completa msix_identidad.txt con los datos de Partner Center y volve a ejecutar.
