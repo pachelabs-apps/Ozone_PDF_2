@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
   PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon, Settings, RotateCw, ArrowDownUp,
@@ -69,6 +70,8 @@ export default function App() {
   const [avisoSeguridad, setAvisoSeguridad] = useState<Seguridad | null>(null);
   const rutaAbierta = useRef<string | undefined>(undefined);
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
   const [herramienta, setHerramienta] = useState<Herramienta>("seleccionar");
   const [color, setColor] = useState(COLORES[0]);
   const [tamTexto, setTamTexto] = useState(14);
@@ -103,6 +106,50 @@ export default function App() {
     return () => clearTimeout(t);
   }, [intro]);
   const vista = useRef<HTMLDivElement>(null);
+
+  // Zoom con dos dedos (celular o tablet): pellizcar sobre el PDF acerca o aleja, y el punto
+  // entre los dedos queda quieto en la pantalla.
+  useEffect(() => {
+    const v = vista.current;
+    if (!v) return;
+    let inicio = 0, zoomInicio = 1, ultimo = 1, cuadro = 0, px = 0, py = 0;
+    const distancia = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const empezar = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !v.querySelector(".pagina")) return;
+      inicio = distancia(e.touches) || 1;
+      zoomInicio = ultimo = zoomRef.current;
+      const r = v.getBoundingClientRect();
+      px = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+      py = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+    };
+    const mover = (e: TouchEvent) => {
+      if (!inicio || e.touches.length !== 2) return;
+      e.preventDefault();
+      const z = Math.min(5, Math.max(0.2, (zoomInicio * distancia(e.touches)) / inicio));
+      cancelAnimationFrame(cuadro);
+      cuadro = requestAnimationFrame(() => {
+        const f = z / ultimo;
+        if (Math.abs(f - 1) < 0.004) return;
+        ultimo = z;
+        const x = v.scrollLeft + px, y = v.scrollTop + py;
+        flushSync(() => setZoom(z));
+        v.scrollLeft = x * f - px;
+        v.scrollTop = y * f - py;
+      });
+    };
+    const terminar = (e: TouchEvent) => { if (e.touches.length < 2) inicio = 0; };
+    v.addEventListener("touchstart", empezar, { passive: true });
+    v.addEventListener("touchmove", mover, { passive: false });
+    v.addEventListener("touchend", terminar);
+    v.addEventListener("touchcancel", terminar);
+    return () => {
+      cancelAnimationFrame(cuadro);
+      v.removeEventListener("touchstart", empezar);
+      v.removeEventListener("touchmove", mover);
+      v.removeEventListener("touchend", terminar);
+      v.removeEventListener("touchcancel", terminar);
+    };
+  }, []);
   const [eventoLabcin, setEventoLabcin] = useState<EventoLabcin | null>(null);
   const tipsDados = useRef(new Set<string>());
   const labcin = useCallback((texto: string, tipo?: EventoLabcin["tipo"], accion?: EventoLabcin["accion"]) => {
@@ -1130,7 +1177,9 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
       <div className="inicio__zona">
         <img src="/img/intro-avatar-solo.png" alt="" width={112} height={112} className="inicio__avatar" />
         <h1>{titulo}<span>.</span></h1>
-        <p>{T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
+        <p>{celular
+          ? T("Tocá «Escanear» o «Elegir PDF». Tus archivos nunca salen de tu equipo.")
+          : T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
         <div className="inicio__botones">
           {/* en el celular lo más usado es escanear: va primero y en rojo */}
           {celular && <button className="boton boton--primario boton--grande" onClick={alEscanear}>
@@ -1162,7 +1211,7 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
           </ul>
         </div>
       ))}
-      <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")} · <kbd>Ctrl</kbd>+<kbd>K</kbd> {T("para buscar")}</p>
+      <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")}{!celular && <> · <kbd>Ctrl</kbd>+<kbd>K</kbd> {T("para buscar")}</>}</p>
       <footer className="inicio__pie">
         <span>{T("Ozone PDF es gratis y de código abierto. Hecho por")} <strong>Nicolás Pacheco</strong> · <a href="https://pachelabs.net" onClick={(e) => { e.preventDefault(); abrirEnlace("https://pachelabs.net"); }}>Pache<span className="marca__punto">.</span>Labs</a> · {T("Argentina")}</span>
         <a className="inicio__cafecito" href="https://cafecito.app/pachelabs" onClick={(e) => { e.preventDefault(); abrirEnlace("https://cafecito.app/pachelabs"); }}>

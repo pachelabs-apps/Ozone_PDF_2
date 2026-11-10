@@ -16,6 +16,17 @@ const TIPS_GENERALES = [
   "Si te sirvió Ozone PDF, podés invitarme un cafecito en pachelabs.net ☕",
   "Si necesitás letra más grande o más contraste, tocá el botón de accesibilidad o apretá Alt+A.",
 ];
+// En el celular no hay teclado ni ventanas para arrastrar: tips de pantalla táctil.
+const TIPS_CELULAR = [
+  "Ozone PDF funciona sin internet: tus archivos nunca salen de tu equipo.",
+  "Para acercar o alejar el PDF, pellizcalo con dos dedos.",
+  "Elegí una herramienta de abajo. Si te equivocás, tocá deshacer.",
+  "Escaneá papeles con la cámara: Ozone encuentra la hoja y la endereza solo.",
+  "Desde WhatsApp, Gmail o Archivos podés tocar un PDF y elegir «Abrir con» → Ozone PDF.",
+  "¿Preferís la pantalla oscura o letra más grande? Tocá el engranaje de arriba: ahí cambiás el tema, el idioma y la accesibilidad.",
+  "Si te sirvió Ozone PDF, podés invitarme un cafecito en pachelabs.net ☕",
+];
+const tactil = () => window.matchMedia("(pointer: coarse), (max-width: 760px)").matches;
 
 function leer() {
   try { return localStorage.getItem(CLAVE); } catch { return null; }
@@ -51,7 +62,7 @@ export default function Labcin({ evento, voz }: { evento: EventoLabcin | null; v
   }
 
   function otroTip() {
-    const lista = TIPS_GENERALES.filter((t) => T(t) !== globo);
+    const lista = (tactil() ? TIPS_CELULAR : TIPS_GENERALES).filter((t) => T(t) !== globo);
     const t = lista[indice.current++ % lista.length];
     api.current?.hablar();
     decir(T(t));
