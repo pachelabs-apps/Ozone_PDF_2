@@ -46,8 +46,11 @@ set "NDK_HOME=%NDK%"
 
 rem --- 3. Rust para celulares ---
 echo  [2/4] Agregando a Rust los procesadores de los celulares Android...
-rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-if errorlevel 1 goto fin_error
+rem si la descarga se corta, se reintenta cada uno hasta 4 veces (lo ya bajado no se vuelve a bajar)
+for %%t in (aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android) do (
+  call :agregar %%t
+  if errorlevel 1 goto fin_error
+)
 
 rem --- 4. Dependencias y proyecto de Android ---
 echo  [3/4] Instalando dependencias...
@@ -71,6 +74,14 @@ echo    - Después hacé doble clic en PROBAR_ANDROID.bat
 echo  ================================================
 pause
 exit /b 0
+
+:agregar
+for /l %%i in (1,1,4) do (
+  rustup target add %1 && exit /b 0
+  echo  Se cortó la descarga de %1. Reintento %%i de 4...
+  timeout /t 5 /nobreak >nul
+)
+exit /b 1
 
 :fin_error
 echo.
