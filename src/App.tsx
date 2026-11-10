@@ -509,7 +509,7 @@ export default function App() {
   }
 
 
-  async function crearDesdeEscaneo(imagenes: Uint8Array[], anexar: boolean, prefijo = T("Escaneo")) {
+  async function crearDesdeEscaneo(imagenes: Uint8Array[], anexar: boolean, reconocer = false, prefijo = T("Escaneo")) {
     if (!anexar && cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
     if (anexar && doc && bloqueado()) return; // antes de cerrar el escáner, así no se pierden las fotos
     setEscaner(false);
@@ -518,6 +518,24 @@ export default function App() {
       const antes = doc?.paginas.length || 0;
       if (anexar && doc) { if (bloqueado()) return; await preparar(); }
       const info = await motor.desdeImagenes(imagenes, anexar && !!doc);
+      // como CamScanner: el texto de las fotos queda buscable y se puede copiar (OCR, sin internet)
+      if (reconocer) {
+        const desde = anexar && doc ? antes : 0, total = info.paginas.length;
+        try {
+          const { capaDeTexto, ocrDeLaApp } = await import("./ocr");
+          for (let i = desde; i < total; i++) {
+            avisar(T("Reconociendo el texto: página {n} de {total}…", { n: i - desde + 1, total: total - desde }));
+            const pg = await motor.paginaParaOcr(i, 300);
+            if (pg.conTexto) continue;
+            const capa = await capaDeTexto(pg.png, pg.dpi, ocrDeLaApp(idioma()));
+            if (capa.palabras) await motor.agregarCapaTexto(i, capa.pdf);
+          }
+          avisar(T("Listo: el texto del escaneo se puede buscar y copiar."), "ok");
+        } catch (e) {
+          console.error(e);
+          avisar(T("No se pudo reconocer el texto, pero el PDF se creó igual."), "error");
+        }
+      }
       if (anexar && doc) {
         setDoc(info);
         setCambios(true);
@@ -1058,7 +1076,7 @@ export default function App() {
           }}
         />
       )}
-      {escaner && <Escaner hayDocumento={!!doc} alCerrar={() => setEscaner(false)} alCrear={crearDesdeEscaneo} />}
+      {escaner && <Escaner hayDocumento={!!doc} alCerrar={() => setEscaner(false)} alCrear={(im, an, rec) => crearDesdeEscaneo(im, an, rec)} />}
       {ajustando && <AjustarPaginas alAceptar={(o) => ajustarPaginas(o)} alCancelar={() => setAjustando(false)} />}
 
       {paleta && <Paleta comandos={comandos()} alCerrar={() => setPaleta(false)} />}
@@ -1106,6 +1124,7 @@ const EDITAR: Tarea[] = [
 
 function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void; alActualizar: () => void }) {
   const titulo = T("Abrí un PDF para empezar");
+  const celular = window.matchMedia("(max-width: 760px)").matches;
   return (
     <section className="inicio inicio--tareas">
       <div className="inicio__zona">
@@ -1113,12 +1132,16 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
         <h1>{titulo}<span>.</span></h1>
         <p>{T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
         <div className="inicio__botones">
-          <button className="boton boton--primario boton--grande" onClick={alAbrir}>
+          {/* en el celular lo más usado es escanear: va primero y en rojo */}
+          {celular && <button className="boton boton--primario boton--grande" onClick={alEscanear}>
+            <Camera size={20} aria-hidden /> {T("Escanear")}
+          </button>}
+          <button className={"boton boton--grande " + (celular ? "boton--suave" : "boton--primario")} onClick={alAbrir}>
             <FolderOpen size={20} aria-hidden /> {T("Elegir PDF")}
           </button>
-          <button className="boton boton--suave boton--grande" onClick={alEscanear}>
+          {!celular && <button className="boton boton--suave boton--grande" onClick={alEscanear}>
             <Camera size={20} aria-hidden /> {T("Escanear")}
-          </button>
+          </button>}
         </div>
       </div>
       {([["Herramientas rápidas", "Te dan un archivo nuevo, sin tocar el original.", RAPIDAS], ["Editar un PDF", "Abrilo y trabajá sobre él.", EDITAR]] as const).map(([titulo, ayuda, lista], g) => (

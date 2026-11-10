@@ -74,7 +74,7 @@ let nFoto = 0;
 export default function Escaner(p: {
   hayDocumento: boolean;
   alCerrar: () => void;
-  alCrear: (imagenes: Uint8Array[], anexar: boolean) => void;
+  alCrear: (imagenes: Uint8Array[], anexar: boolean, reconocer: boolean) => void;
 }) {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [editando, setEditando] = useState<number | null>(null);
@@ -83,6 +83,8 @@ export default function Escaner(p: {
   const [error, setError] = useState<string | null>(null);
   const [filtroGeneral, setFiltroGeneral] = useState<Filtro>("mejorado");
   const celular = window.matchMedia("(pointer: coarse)").matches;
+  // reconocer el texto (OCR) al crear el PDF: se recuerda lo que eligió la persona
+  const [reconocer, setReconocer] = useState(() => { try { return localStorage.getItem("ozone.ocrEscaneo") !== "0"; } catch { return true; } });
 
   useEffect(() => () => fotos.forEach((f) => { URL.revokeObjectURL(f.url); f.resultado && URL.revokeObjectURL(f.resultado.url); }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,7 +186,7 @@ export default function Escaner(p: {
 
   function crear(anexar: boolean) {
     const imagenes = fotos.map((f) => f.resultado!.bytes.slice());
-    p.alCrear(imagenes, anexar);
+    p.alCrear(imagenes, anexar, reconocer);
   }
 
   const actual = editando !== null ? fotos[editando] : null;
@@ -238,6 +240,7 @@ export default function Escaner(p: {
                   </button>
                 ))}
               </div>
+              <p className="escaner__ayuda">{T("Tocá una hoja para ajustar las esquinas o el filtro.")}</p>
               <ol className="escaner__lista">
                 {fotos.map((f, i) => (
                   <li key={f.id} className="escaner__hoja">
@@ -265,6 +268,10 @@ export default function Escaner(p: {
 
       {!actual && fotos.length > 0 && (
         <footer className="escaner__pie">
+          <label className="escaner__ocr">
+            <input type="checkbox" checked={reconocer} onChange={(e) => { setReconocer(e.target.checked); try { localStorage.setItem("ozone.ocrEscaneo", e.target.checked ? "1" : "0"); } catch { /* nada */ } }} />
+            <span>{T("Reconocer el texto")}<small>{T("Para buscar y copiar. Tarda unos segundos por hoja.")}</small></span>
+          </label>
           {p.hayDocumento && (
             <button className="boton boton--claro" disabled={trabajando} onClick={() => crear(true)}>{T("Agregar al PDF abierto")}</button>
           )}

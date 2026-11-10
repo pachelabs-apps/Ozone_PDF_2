@@ -507,6 +507,12 @@ html.tema-oscuro {
 .escaner__mas button:hover { border-color: var(--rojo); background: rgba(211, 38, 29, .08); }
 .escaner__pie { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
   border-top: 1px solid rgba(255, 255, 255, .1); background: #121317; }
+.escaner__ayuda { margin: 0 16px 4px; color: rgba(255, 255, 255, .62); font-size: .88rem; }
+.escaner__ocr { display: flex; align-items: center; gap: 10px; margin-right: auto; color: #fff; font-weight: 700; font-size: .92rem; cursor: pointer; }
+.escaner__ocr input { width: 20px; height: 20px; accent-color: var(--rojo); flex: none; }
+.escaner__ocr span { display: grid; }
+.escaner__ocr small { font-weight: 400; color: rgba(255, 255, 255, .6); font-size: .78rem; }
+@media (max-width: 760px) { .escaner__ocr { flex-basis: 100%; } }
 .escaner__error { margin: 16px auto 0; max-width: 440px; text-align: center; background: rgba(211, 38, 29, .15); border: 1px solid rgba(211, 38, 29, .5); padding: 10px 14px; border-radius: 12px; }
 .escaner__trabajando { position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
   background: #fff; color: #17181C; font-weight: 700; padding: 10px 16px; border-radius: 999px; box-shadow: 0 12px 30px rgba(0, 0, 0, .4); animation: aviso-entra .3s var(--rebote); }
