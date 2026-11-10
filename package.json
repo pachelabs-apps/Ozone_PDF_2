@@ -1,6 +1,6 @@
 {
   "name": "ozone-pdf",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Ozone PDF 2: editor de PDF gratis y sin conexión de Pache Labs.",
   "scripts": {
     "predev": "node scripts/copiar-ocr.mjs",

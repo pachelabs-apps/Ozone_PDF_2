@@ -10,10 +10,10 @@ document.documentElement.lang = idioma();
 // cuánto miden; la parte nativa lo deja en window.__ozoneBordes (en compu no existe y no pasa nada).
 type Bordes = { arriba: number; abajo: number };
 function aplicarBordes() {
-  // Si en Android todavía no llegó la medida, se reserva lo de una barra de botones común
-  // (48 dp): mejor un poco de aire de más que una herramienta tapada.
+  // Abajo ya lo resuelve la parte nativa (achica la vista); si arriba todavía no llegó la medida,
+  // se reserva lo de una barra de estado común.
   const android = /Android/i.test(navigator.userAgent);
-  const b = (window as unknown as { __ozoneBordes?: Bordes }).__ozoneBordes ?? (android ? { arriba: 28, abajo: 48 } : null);
+  const b = (window as unknown as { __ozoneBordes?: Bordes }).__ozoneBordes ?? (android ? { arriba: 28, abajo: 0 } : null);
   if (!b) return;
   const r = document.documentElement.style;
   r.setProperty("--borde-arriba", `max(env(safe-area-inset-top, 0px), ${b.arriba}px)`);

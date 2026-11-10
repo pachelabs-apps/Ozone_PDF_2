@@ -29,9 +29,14 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     vista = webView
     val raiz = findViewById<View>(android.R.id.content)
+    // Abajo y a los costados no se dibuja detrás de los botones del sistema: la vista se achica
+    // para terminar justo encima (y al costado, con el celular girado). Arriba sí se llega hasta
+    // el borde para que la barra oscura de la app se vea detrás de la hora y la batería.
     ViewCompat.setOnApplyWindowInsetsListener(raiz) { v, insets ->
+      val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars() or WindowInsetsCompat.Type.displayCutout())
+      v.setPadding(nav.left, 0, nav.right, nav.bottom)
       avisar(insets, false)
-      ViewCompat.onApplyWindowInsets(v, insets)
+      insets
     }
     ViewCompat.requestApplyInsets(raiz)
     for (ms in longArrayOf(0, 700, 2000, 5000)) {
@@ -43,7 +48,7 @@ class MainActivity : TauriActivity() {
     val w = vista ?: return
     val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
     val d = resources.displayMetrics.density
-    val js = "window.__ozoneBordes={arriba:${(b.top / d).roundToInt()},abajo:${(b.bottom / d).roundToInt()}};" +
+    val js = "window.__ozoneBordes={arriba:${(b.top / d).roundToInt()},abajo:0};" +
       "window.dispatchEvent(new Event('ozone-bordes'));"
     if (js == ultimo && !forzar) return
     if (js != ultimo && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
