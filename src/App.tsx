@@ -14,7 +14,7 @@ import { motor, type Anotacion, type InfoDoc, type Rect, type Seguridad } from "
 import Pagina, { type Accion, type Herramienta, type Seleccion } from "./componentes/Pagina";
 import Miniaturas from "./componentes/Miniaturas";
 import FirmaModal, { firmaGuardada, type Firma } from "./componentes/FirmaModal";
-import { protegerOriginal, abrirEnlace, origenInstalacion, paginaActualizaciones, abrirConDialogo, archivoInicial, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
+import { protegerOriginal, abrirEnlace, origenInstalacion, paginaActualizaciones, abrirConDialogo, archivoInicial, alLlegarArchivo, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
 import { T, IDIOMAS, idioma, cambiarIdioma, type Idioma } from "./i18n";
 import Labcin, { type EventoLabcin } from "./labcin/Labcin";
 
@@ -160,7 +160,9 @@ export default function App() {
     } finally {
       setOcupado(false);
     }
-  }
+  }  const cargarRef = useRef(cargar); // para los avisos que llegan después (archivo compartido desde otra app)
+  cargarRef.current = cargar;
+
 
   function reiniciar() {
     setVersiones({}); setAnots({}); setSeleccion(null); setHistorial([]); setCambios(false);
@@ -477,7 +479,12 @@ export default function App() {
   }
 
   async function buscarActualizaciones() {
-    if (await origenInstalacion() === "tienda") {
+    const origen = await origenInstalacion();
+    if (origen === "play" || origen === "appstore") {
+      labcin(T(origen === "play" ? "Tenés Ozone PDF {v}: se actualiza solo desde Google Play." : "Tenés Ozone PDF {v}: se actualiza solo desde la App Store.", { v: __VERSION__ }), "tip");
+      return;
+    }
+    if (origen === "tienda") {
       labcin(T("Tenés Ozone PDF {v} de Microsoft Store: se actualiza solo, no tenés que hacer nada.", { v: __VERSION__ }), "tip");
       return;
     }
@@ -595,6 +602,8 @@ export default function App() {
   // abrir el PDF con el que se lanzó la app ("Abrir con… Ozone PDF")
   useEffect(() => {
     archivoInicial().then((a) => a && cargar(a)).catch(() => {});
+    // en el celular: un PDF compartido desde otra app mientras Ozone PDF ya estaba abierto
+    alLlegarArchivo(() => archivoInicial().then((a) => a && cargarRef.current(a)).catch(() => {}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

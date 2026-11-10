@@ -1,9 +1,20 @@
 // Ozone PDF 2 — Pache Labs. La app no hace conexiones de red: todo el trabajo con el PDF
 // ocurre en el motor local (MuPDF) dentro de la ventana.
 
-/// Si la app se abrió con "Abrir con… Ozone PDF", devuelve la ruta del PDF.
+/// PDF que otra app mandó a abrir (en el celular: "Abrir con…" o "Compartir" desde WhatsApp, Gmail, Archivos).
+struct Pendiente(std::sync::Mutex<Option<String>>);
+
+/// Si la app se abrió con "Abrir con… Ozone PDF", devuelve la ruta (o la dirección content:// en Android).
+/// Se entrega una sola vez.
 #[tauri::command]
-fn archivo_inicial() -> Option<String> {
+fn archivo_inicial(pendiente: tauri::State<Pendiente>) -> Option<String> {
+    if let Some(u) = pendiente.0.lock().ok().and_then(|mut x| x.take()) {
+        return Some(u);
+    }
+    static LEIDO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if LEIDO.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return None;
+    }
     std::env::args()
         .skip(1)
         .find(|a| a.to_lowercase().ends_with(".pdf"))
@@ -13,6 +24,13 @@ fn archivo_inicial() -> Option<String> {
 /// WindowsApps y se actualizan solas), "directo" si vino del instalador de la página.
 #[tauri::command]
 fn origen_instalacion() -> String {
+    // en el celular se instala y se actualiza desde la tienda del sistema
+    if cfg!(target_os = "android") {
+        return "play".into();
+    }
+    if cfg!(target_os = "ios") {
+        return "appstore".into();
+    }
     let ruta = std::env::current_exe().map(|p| p.to_string_lossy().to_lowercase()).unwrap_or_default();
     if ruta.contains("\\windowsapps\\") { "tienda".into() } else { "directo".into() }
 }
@@ -100,7 +118,8 @@ fn carpeta_nube(ruta: String) -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .manage(Pendiente(std::sync::Mutex::new(None)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         // solo abre en el navegador de la persona los enlaces de Pache Labs y Cafecito (la app no se conecta)
@@ -126,8 +145,28 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![archivo_inicial, carpeta_nube, origen_instalacion])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("no se pudo iniciar Ozone PDF");
+    app.run(|_app, _evento| {
+        // otra app pidió abrir un PDF con Ozone PDF: se guarda y se avisa a la pantalla
+        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+        if let tauri::RunEvent::Opened { urls } = _evento {
+            if let Some(u) = urls.first() {
+                let texto = if u.scheme() == "file" {
+                    u.to_file_path().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| u.to_string())
+                } else {
+                    u.to_string()
+                };
+                use tauri::{Emitter, Manager};
+                if let Some(p) = _app.try_state::<Pendiente>() {
+                    if let Ok(mut x) = p.0.lock() {
+                        *x = Some(texto);
+                    }
+                }
+                let _ = _app.emit("archivo-abierto", ());
+            }
+        }
+    });
 }
 
 #[cfg(test)]

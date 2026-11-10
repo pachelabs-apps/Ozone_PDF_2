@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solo para probar (tauri android dev): la pantalla se carga desde la compu por la red de tu casa.
+     La versión que se publica (release) no incluye este permiso: la app no puede conectarse a internet. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

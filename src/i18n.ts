@@ -135,6 +135,8 @@ const TEXTOS: Record<string, Fila> = {
   "1 cm": { en: "1 cm", de: "1 cm", zh: "1 厘米", ja: "1 cm", ru: "1 см" },
   "2 cm (sugerido)": { en: "2 cm (suggested)", de: "2 cm (empfohlen)", zh: "2 厘米（推荐）", ja: "2 cm（おすすめ）", ru: "2 см (рекомендуется)" },
   "Otro": { en: "Other", de: "Andere", zh: "其他", ja: "その他", ru: "Другое" },
+  "Tenés Ozone PDF {v}: se actualiza solo desde Google Play.": { en: "You have Ozone PDF {v}: it updates itself from Google Play.", de: "Du hast Ozone PDF {v}: Es aktualisiert sich automatisch über Google Play.", zh: "你使用的是 Ozone PDF {v}：它会通过 Google Play 自动更新。", ja: "Ozone PDF {v} です。Google Play から自動で更新されます。", ru: "У вас Ozone PDF {v}: он обновляется сам через Google Play." },
+  "Tenés Ozone PDF {v}: se actualiza solo desde la App Store.": { en: "You have Ozone PDF {v}: it updates itself from the App Store.", de: "Du hast Ozone PDF {v}: Es aktualisiert sich automatisch über den App Store.", zh: "你使用的是 Ozone PDF {v}：它会通过 App Store 自动更新。", ja: "Ozone PDF {v} です。App Store から自動で更新されます。", ru: "У вас Ozone PDF {v}: он обновляется сам через App Store." },
   "Ajustes": { en: "Settings", de: "Einstellungen", zh: "设置", ja: "設定", ru: "Настройки" },
   "Tema": { en: "Theme", de: "Design", zh: "主题", ja: "テーマ", ru: "Тема" },
   "Listo: la imagen quedó en un PDF.": { en: "Done: the image is now a PDF.", de: "Fertig: Das Bild ist jetzt ein PDF.", zh: "完成：图片已转为 PDF。", ja: "完了：画像を PDF にしました。", ru: "Готово: изображение сохранено в PDF." },

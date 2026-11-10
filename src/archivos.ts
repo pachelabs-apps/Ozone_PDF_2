@@ -71,6 +71,13 @@ export async function desdeArchivo(f: File): Promise<Abierto> {
 }
 
 export function nombreDe(ruta: string) {
+  if (/^content:/i.test(ruta)) {
+    // Android: content://…/document/primary%3ADownload%2Fcontrato.pdf → contrato.pdf
+    let ultimo = ruta.split("/").pop() || "";
+    try { ultimo = decodeURIComponent(ultimo); } catch { /* queda como está */ }
+    ultimo = ultimo.split(/[\\/:]/).pop() || "";
+    return /\.pdf$/i.test(ultimo) ? ultimo : "Documento.pdf";
+  }
   return ruta.split(/[\\/]/).pop() || "documento.pdf";
 }
 
@@ -103,6 +110,13 @@ export async function guardarConDialogo(datos: Uint8Array, nombre: string, rutaO
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return true;
+}
+
+// Con la app ya abierta, otra app (WhatsApp, Gmail, Archivos) le manda un PDF: se avisa para abrirlo.
+export async function alLlegarArchivo(f: () => void) {
+  if (!enApp) return;
+  const { listen } = await import("@tauri-apps/api/event");
+  await listen("archivo-abierto", () => f());
 }
 
 // Si la app se abrió con "Abrir con… Ozone PDF", carga ese archivo.
@@ -241,9 +255,9 @@ export async function abrirImagenes(): Promise<Imagen[]> {
 
 // "Buscar actualizaciones": la app no se conecta. Si vino de Microsoft Store, la Store la actualiza;
 // si no, abre la página de descargas en el navegador con la versión instalada y la página compara.
-export async function origenInstalacion(): Promise<"tienda" | "directo" | "navegador"> {
+export async function origenInstalacion(): Promise<"tienda" | "directo" | "navegador" | "play" | "appstore"> {
   if (!enApp) return "navegador";
-  try { const { invoke } = await import("@tauri-apps/api/core"); return await invoke<"tienda" | "directo">("origen_instalacion"); }
+  try { const { invoke } = await import("@tauri-apps/api/core"); return await invoke<"tienda" | "directo" | "play" | "appstore">("origen_instalacion"); }
   catch { return "directo"; }
 }
 export function paginaActualizaciones(idioma: string) {
