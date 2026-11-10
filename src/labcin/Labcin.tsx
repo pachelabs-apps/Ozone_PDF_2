@@ -46,7 +46,8 @@ export default function Labcin({ evento, voz }: { evento: EventoLabcin | null; v
     setGlobo(texto);
     setAccion(acc);
     if (voz) hablar(texto, idioma());
-    programarCierre(ms);
+    // en el celular el globo tapa media pantalla: se va antes
+    programarCierre(window.matchMedia("(max-width: 760px)").matches ? Math.min(ms, 5500) : ms);
   }
 
   function otroTip() {

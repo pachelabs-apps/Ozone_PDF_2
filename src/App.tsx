@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon, Settings,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon, Settings, RotateCw, ArrowDownUp,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
@@ -186,7 +186,7 @@ export default function App() {
     // el original con firma digital no se puede pisar: al guardar hay que elegir otro nombre
     protegerOriginal(seg?.firma ? rutaAbierta.current : null);
     if (seg && (seg.firma || seg.restringido)) setTimeout(() => setAvisoSeguridad(seg), 450);
-    else if (seg?.adjuntos) setTimeout(() => labcin(T("Ojo: este PDF trae {n} archivos adjuntos adentro. Si lo vas a compartir, podés sacarlos con “Limpiar datos ocultos”.", { n: seg.adjuntos }), "tip",
+    else if (seg?.adjuntos) setTimeout(() => labcin(seg.adjuntos === 1 ? T("Ojo: este PDF trae un archivo adjunto adentro. Si lo vas a compartir, podés sacarlo con “Limpiar datos ocultos”.") : T("Ojo: este PDF trae {n} archivos adjuntos adentro. Si lo vas a compartir, podés sacarlos con “Limpiar datos ocultos”.", { n: seg.adjuntos }), "tip",
       { texto: T("Limpiar datos ocultos"), fn: () => abrirRapida("limpiar") }), 1300);
     const tarea = tareaPendiente.current;
     tareaPendiente.current = null;
@@ -828,6 +828,21 @@ export default function App() {
                 <>
                   <div className="menu-capa" onPointerDown={() => setMenuPaginas(false)} />
                   <div className="menu-paginas" role="menu">
+                    {/* en el celular no se ven las miniaturas: rotar, borrar y ordenar también van acá */}
+                    {([
+                      ["rotar", RotateCw, "Rotar páginas", "Girá todas o solo algunas."],
+                      ["eliminar", Trash2, "Eliminar páginas", "Quitá las páginas que no querés."],
+                      ["ordenar", ArrowDownUp, "Ordenar páginas", "Cambiá el orden o invertilo."],
+                    ] as const).map(([id, I, t, d]) => (
+                      <button key={id} role="menuitem" className="menu-paginas__item solo-celular" onClick={() => {
+                        setMenuPaginas(false);
+                        if (bloqueado()) return;
+                        setPanel({ inicial: id });
+                      }}>
+                        <span className="tarjeta__icono"><I size={18} aria-hidden /></span>
+                        <span><strong>{T(t)}</strong><small>{T(d)}</small></span>
+                      </button>
+                    ))}
                     {([
                       ["ajustar", Scaling, "Ajustar páginas", "A4, Carta, márgenes o todas verticales"],
                       ["numerar", ListOrdered, "Numerar páginas", "Agregá el número de página."],
@@ -842,7 +857,7 @@ export default function App() {
                         <span><strong>{T(t)}</strong><small>{T(d)}</small></span>
                       </button>
                     ))}
-                    <p className="menu-paginas__pie">{T("Para rotar, borrar u ordenar, usá las miniaturas de la izquierda.")}</p>
+                    <p className="menu-paginas__pie solo-compu">{T("Para rotar, borrar u ordenar, usá las miniaturas de la izquierda.")}</p>
                   </div>
                 </>
               )}
