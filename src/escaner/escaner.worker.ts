@@ -183,12 +183,35 @@ function fondoDePapel(img: Img) {
       dil[y * sw + x] = mx;
     }
   const suave = desenfocar(dil, sw, sh, 3);
+  // Nivel típico del papel (percentil 90). Una zona mucho más oscura que eso no es papel en sombra
+  // sino contenido (una foto, una tabla con fondo): no se la aclara como si fuera papel, así no se quema.
+  const orden = Array.from(suave).sort((a, b) => a - b);
+  const papel = Math.max(60, orden[Math.floor(orden.length * 0.9)] || 200);
+  const piso = papel * 0.62;
   return (x: number, y: number) => {
     const fx = Math.min(sw - 1.001, Math.max(0, x / p - 0.5)), fy = Math.min(sh - 1.001, Math.max(0, y / p - 0.5));
     const x0 = fx | 0, y0 = fy | 0, ax = fx - x0, ay = fy - y0;
     const a = suave[y0 * sw + x0], b = suave[y0 * sw + x0 + 1], c = suave[(y0 + 1) * sw + x0], e = suave[(y0 + 1) * sw + x0 + 1];
-    return Math.max(40, (a * (1 - ax) + b * ax) * (1 - ay) + (c * (1 - ax) + e * ax) * ay);
+    return Math.max(piso, (a * (1 - ax) + b * ax) * (1 - ay) + (c * (1 - ax) + e * ax) * ay);
   };
+}
+
+// Color del papel: se promedian los píxeles que son papel (casi tan claros como el fondo estimado)
+// y se calcula cuánto corregir cada canal para que el papel quede blanco y no amarillento o azulado.
+function balanceDeBlancos(img: Img, fondo: (x: number, y: number) => number): [number, number, number] {
+  const { w, h, d } = img;
+  let sr = 0, sg = 0, sb = 0, n = 0;
+  for (let y = 0; y < h; y += 6)
+    for (let x = 0; x < w; x += 6) {
+      const i = (y * w + x) * 4;
+      const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      if (l < fondo(x, y) * 0.9) continue;
+      sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; n++;
+    }
+  if (n < 50) return [1, 1, 1];
+  const r = sr / n, g = sg / n, b = sb / n, l = 0.299 * r + 0.587 * g + 0.114 * b;
+  const k = (v: number) => Math.min(1.3, Math.max(0.77, l / Math.max(1, v)));
+  return [k(r), k(g), k(b)];
 }
 
 function filtrar(img: Img, filtro: Filtro): Img {
@@ -196,15 +219,16 @@ function filtrar(img: Img, filtro: Filtro): Img {
   const { w, h, d } = img;
   const out = new Uint8ClampedArray(d.length);
   const fondo = fondoDePapel(img);
+  const [kr, kg, kb] = balanceDeBlancos(img, fondo);
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      const f = 255 / fondo(x, y);
+      const f = 250 / fondo(x, y);
       if (filtro === "mejorado") {
-        // papel blanco, colores más vivos y un poco más de contraste
-        let r = d[i] * f, g = d[i + 1] * f, b = d[i + 2] * f;
+        // papel blanco y parejo, colores un poco más vivos, sin quemar lo claro
+        let r = d[i] * kr * f, g = d[i + 1] * kg * f, b = d[i + 2] * kb * f;
         const l = 0.299 * r + 0.587 * g + 0.114 * b;
-        r = l + (r - l) * 1.35; g = l + (g - l) * 1.35; b = l + (b - l) * 1.35;
+        r = l + (r - l) * 1.15; g = l + (g - l) * 1.15; b = l + (b - l) * 1.15;
         out[i] = curva(r); out[i + 1] = curva(g); out[i + 2] = curva(b);
       } else {
         const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * f;
@@ -218,8 +242,8 @@ function filtrar(img: Img, filtro: Filtro): Img {
 
 // realza el contraste: lo casi blanco pasa a blanco y los oscuros se profundizan
 function curva(v: number) {
-  const t = Math.min(1, Math.max(0, (v - 18) / (238 - 18)));
-  return 255 * (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)) * 0.35 + 255 * t * 0.65;
+  const t = Math.min(1, Math.max(0, (v - 14) / (247 - 14)));
+  return 255 * (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)) * 0.25 + 255 * t * 0.75;
 }
 
 function rotar90(img: Img): Img {
