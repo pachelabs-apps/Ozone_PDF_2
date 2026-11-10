@@ -3,7 +3,9 @@
   "version": "2.0.1",
   "description": "Ozone PDF 2: editor de PDF gratis y sin conexión de Pache Labs.",
   "scripts": {
+    "predev": "node scripts/copiar-ocr.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copiar-ocr.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
@@ -18,10 +20,17 @@
     "lucide-react": "^1.70.0",
     "mupdf": "^1.28.1",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.4",
+    "@tesseract.js-data/chi_sim": "^1.0.0",
+    "@tesseract.js-data/deu": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/jpn": "^1.0.0",
+    "@tesseract.js-data/rus": "^1.0.0",
+    "@tesseract.js-data/spa": "^1.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",

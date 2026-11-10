@@ -864,8 +864,12 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
 .rapida__abrir input { width: 18px; height: 18px; accent-color: var(--rojo); }
 .rapida__hacer { width: 100%; justify-content: center; }
 .rapida__motivo { margin: -4px 0 0; color: var(--tinta-suave); font-size: .86rem; text-align: center; }
+.rapida__progreso { display: grid; gap: 6px; font-size: .88rem; color: var(--tinta-suave); text-align: center; }
+.rapida__barra { display: block; height: 6px; border-radius: 99px; background: var(--borde); overflow: hidden; }
+.rapida__barra span { display: block; height: 100%; background: var(--rojo); border-radius: inherit; transition: width .2s; }
+.rapida__leido { width: min(720px, 100%); min-height: 260px; max-height: 46vh; resize: vertical; font: 400 .95rem/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; text-align: left; white-space: pre-wrap; }
 .rapida__listo { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 46px 20px; background: var(--panel); border: 1px solid var(--borde); border-radius: 20px; box-shadow: var(--sombra); animation: modal-entra .3s var(--rebote); }
-.rapida__listo svg { color: #1E8A4C; }
+.rapida__listo > svg { color: #1E8A4C; }
 .rapida__listo h2 { margin: 0; font: 780 1.3rem/1.25 "Bricolage", system-ui, sans-serif; max-width: 34ch; }
 .rapida__botones { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
 @media (max-width: 760px) {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowUp, ArrowDown, X, FilePlus2, CheckCircle2, ShieldAlert, BadgeCheck, Lock, FileText } from "lucide-react";
-import { T } from "../i18n";
+import { ArrowLeft, ArrowUp, ArrowDown, X, FilePlus2, CheckCircle2, ShieldAlert, BadgeCheck, Lock, FileText, Copy, Download } from "lucide-react";
+import { T, idioma } from "../i18n";
+import { IDIOMAS_OCR, ocrDeLaApp, leerTexto, capaDeTexto, alAvanzar, type IdiomaOcr } from "../ocr";
 import { motorAparte, type Seguridad } from "../motor/motor";
 import { LISTA, type IdHerramienta } from "./Herramientas";
 import { abrirEnlace, abrirVarios, abrirConDialogo, abrirImagenes, guardarArchivo, guardarVarios, base, type Abierto } from "../archivos";
@@ -13,9 +14,9 @@ type Archivo = {
   id: number; nombre: string; datos: Uint8Array; ruta?: string; tamano: number;
   paginas?: number; seguridad?: Seguridad; necesitaClave?: boolean; clave?: string; error?: string; imagen?: boolean;
 };
-type Resultado = { texto: string; pdf?: { nombre: string; datos: Uint8Array; ruta?: string } };
+type Resultado = { texto: string; pdf?: { nombre: string; datos: Uint8Array; ruta?: string }; leido?: string };
 
-const VARIOS = new Set<IdHerramienta>(["unir", "img2pdf"]);
+const VARIOS = new Set<IdHerramienta>(["unir", "img2pdf", "ocrimg"]);
 const SOLO_LEER: Partial<Record<IdHerramienta, "copiar" | "imprimir">> = { texto: "copiar", imagenes: "imprimir" };
 const CLAVE_ABRIR = "ozone.abrirAlTerminar";
 
@@ -52,7 +53,7 @@ export default function Rapida(p: {
 }) {
   const h = LISTA.find((x) => x.id === p.id)!;
   const varios = VARIOS.has(p.id);
-  const esImagen = p.id === "img2pdf";
+  const esImagen = p.id === "img2pdf" || p.id === "ocrimg";
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [soltando, setSoltando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -69,6 +70,10 @@ export default function Rapida(p: {
   const [c1, setC1] = useState(""); const [c2, setC2] = useState("");
   const [formato, setFormato] = useState("jpg");
   const [dpi, setDpi] = useState(150);
+  const [idiomaOcr, setIdiomaOcr] = useState<IdiomaOcr>(() => ocrDeLaApp(idioma()));
+  const [trabajando, setTrabajando] = useState(false);
+  const [progreso, setProgreso] = useState("");
+  const [porcentaje, setPorcentaje] = useState(0);
   const listo = useRef(false);
   const [arrastrando, setArrastrando] = useState<number | null>(null); // id de la tarjeta que se está moviendo
 
@@ -162,11 +167,13 @@ export default function Rapida(p: {
     return m;
   }
   async function ejecutar() {
-    if (motivo) return;
+    if (motivo || trabajando) return;
     const a = pdfs[0];
     const b = a ? base(a.nombre) : T("Imágenes");
     const junto = a?.ruta || archivos[0]?.ruta;
     p.alOcupado(true);
+    setTrabajando(true);
+    alAvanzar((x) => setPorcentaje(Math.round(x * 100)));
     try {
       let r: Resultado | null = null;
       const unPdf = async (datos: Uint8Array, sufijo: string, texto: string) => {
@@ -186,6 +193,15 @@ export default function Rapida(p: {
         await m.unir(entradas);
         const { datos } = await m.guardar();
         r = await unPdf(datos, "unido", T("Listo: se unieron {n} archivos en uno.", { n: archivos.length }));
+      } else if (p.id === "ocrimg") {
+        const textos: string[] = [];
+        for (let k = 0; k < archivos.length; k++) {
+          setProgreso(archivos.length > 1 ? T("Leyendo imagen {n} de {total}…", { n: k + 1, total: archivos.length }) : T("Leyendo la imagen…"));
+          const x = await leerTexto(archivos[k].datos, idiomaOcr);
+          textos.push(archivos.length > 1 ? `— ${archivos[k].nombre} —\n\n${x.texto}` : x.texto);
+        }
+        const leido = textos.join("\n\n").trim();
+        r = { texto: leido ? T("Listo: este es el texto que encontré.") : T("No encontré texto en las imágenes."), leido };
       } else if (p.id === "img2pdf") {
         await m.cerrar();
         await m.desdeImagenes(archivos.map((x) => x.datos.slice()), false);
@@ -225,6 +241,23 @@ export default function Rapida(p: {
           const x = await m.aImagenes(dpi, formato);
           const lista = x.lista.map((y) => ({ nombre: `${b} - ${String(y.pagina).padStart(3, "0")}.${formato}`, datos: y.datos }));
           if (await guardarVarios(lista)) r = { texto: T("Listo: se crearon {n} archivos.", { n: lista.length }) };
+        } else if (p.id === "buscable") {
+          const n = a.paginas || 0;
+          let hechas = 0, yaTenian = 0;
+          for (let i = 0; i < n; i++) {
+            setProgreso(T("Leyendo página {n} de {total}…", { n: i + 1, total: n })); setPorcentaje(0);
+            const pg = await m.paginaParaOcr(i, 300);
+            if (pg.conTexto) { yaTenian++; continue; }
+            const capa = await capaDeTexto(pg.png, pg.dpi, idiomaOcr);
+            if (!capa.palabras) continue;
+            await m.agregarCapaTexto(i, capa.pdf);
+            hechas++;
+          }
+          if (!hechas) r = { texto: yaTenian === n ? T("Este PDF ya tiene texto: se puede buscar y copiar sin hacer nada.") : T("No encontré texto para reconocer en este PDF.") };
+          else {
+            const { datos } = await m.guardar(a.clave ? { clave: a.clave } : {});
+            r = await unPdf(datos, "buscable", hechas === 1 ? T("Listo: ahora se puede buscar y copiar el texto.") : T("Listo: ahora se puede buscar y copiar el texto de {n} páginas.", { n: hechas }));
+          }
         } else if (p.id === "texto") {
           const partes = await m.aTexto();
           const texto = partes.map((t, i) => `— ${T("Página {n} de {total}", { n: i + 1, total: partes.length })} —\n\n${t}`).join("\n\n");
@@ -244,7 +277,13 @@ export default function Rapida(p: {
         : T("Algo salió mal. Probá de nuevo."), "error");
     } finally {
       p.alOcupado(false);
+      setTrabajando(false); setProgreso(""); setPorcentaje(0);
+      alAvanzar(null);
     }
+  }
+  async function guardarLeido(texto: string) {
+    const nombre = `${archivos.length === 1 ? base(archivos[0].nombre) : T("Texto")}.txt`;
+    if (await guardarArchivo(new TextEncoder().encode(texto), nombre, archivos[0]?.ruta)) p.alAviso(T("Listo: texto guardado."), "ok");
   }
 
   const I = h.icono;
@@ -267,7 +306,19 @@ export default function Rapida(p: {
         <div className="rapida__listo">
           <CheckCircle2 size={46} aria-hidden />
           <h2>{resultado.texto}</h2>
+          {resultado.leido && <textarea className="campo rapida__leido" defaultValue={resultado.leido} aria-label={T("Texto encontrado")} spellCheck={false} />}
           <div className="rapida__botones">
+            {resultado.leido && <>
+              <button className="boton boton--primario boton--grande" onClick={async (e) => {
+                const area = (e.currentTarget.closest(".rapida__listo")?.querySelector("textarea") as HTMLTextAreaElement | null);
+                try { await navigator.clipboard.writeText(area?.value ?? resultado.leido!); p.alAviso(T("Texto copiado."), "ok"); }
+                catch { area?.select(); document.execCommand("copy"); p.alAviso(T("Texto copiado."), "ok"); }
+              }}><Copy size={18} aria-hidden /> {T("Copiar texto")}</button>
+              <button className="boton boton--suave boton--grande" onClick={(e) => {
+                const area = (e.currentTarget.closest(".rapida__listo")?.querySelector("textarea") as HTMLTextAreaElement | null);
+                guardarLeido(area?.value ?? resultado.leido!);
+              }}><Download size={18} aria-hidden /> {T("Guardar como .txt")}</button>
+            </>}
             {resultado.pdf && <button className="boton boton--primario boton--grande" onClick={() => p.alAbrirResultado({ nombre: resultado.pdf!.nombre, datos: resultado.pdf!.datos.slice().buffer, ruta: resultado.pdf!.ruta })}>{T("Abrir el resultado")}</button>}
             <button className="boton boton--suave boton--grande" onClick={() => { setResultado(null); setArchivos([]); }}>{T("Hacer otro")}</button>
             <button className="boton boton--suave boton--grande" onClick={p.alVolver}>{T("Volver")}</button>
@@ -363,18 +414,34 @@ export default function Rapida(p: {
               <Opciones nombre="fmt" titulo="Formato" valor={formato} alCambiar={setFormato} opciones={[{ v: "jpg", t: "JPG" }, { v: "png", t: "PNG" }]} />
               <Opciones nombre="dpi" titulo="Calidad" valor={dpi} alCambiar={setDpi} opciones={[{ v: 96, t: "Pantalla" }, { v: 150, t: "Normal" }, { v: 300, t: "Impresión" }]} />
             </>}
-            {p.id === "texto" && <p className="modal__ayuda">{T("Se guarda un archivo .txt con el texto de todas las páginas. Si el PDF es escaneado, no va a tener texto.")}</p>}
+            {p.id === "texto" && <p className="modal__ayuda">{T("Se guarda un archivo .txt con el texto de todas las páginas. Si el PDF es escaneado, primero usá «Hacer buscable un PDF».")}</p>}
+            {(p.id === "buscable" || p.id === "ocrimg") && <>
+              <label className="campo-etiqueta">{T("Idioma del texto")}
+                <select className="campo" value={idiomaOcr} onChange={(e) => setIdiomaOcr(e.target.value as IdiomaOcr)}>
+                  {IDIOMAS_OCR.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                </select>
+              </label>
+              <p className="modal__ayuda">{T(p.id === "buscable"
+                ? "Lee cada página escaneada y le agrega el texto por debajo: se ve igual, pero vas a poder buscar (Ctrl+F), seleccionar y copiar. Todo pasa en tu computadora."
+                : "Lee el texto de fotos o escaneos para que lo copies o lo guardes. Funciona mejor con fotos derechas y bien iluminadas. Todo pasa en tu computadora.")}</p>
+            </>}
             {p.id === "limpiar" && <p className="modal__ayuda">{T("Se borra lo que el PDF guarda sin que se vea: autor, programa, fechas, adjuntos y nombres en las notas.")}</p>}
             {p.id === "unir" && <p className="modal__ayuda">{T("Se unen en el orden de la lista. Arrastrá las tarjetas o usá las flechas para cambiarlo.")}</p>}
             {p.id === "img2pdf" && <p className="modal__ayuda">{T("Cada imagen queda en una página A4, centrada, en el orden de la lista.")}</p>}
 
-            <label className="rapida__abrir">
+            {p.id !== "ocrimg" && <label className="rapida__abrir">
               <input type="checkbox" checked={abrirAlTerminar} onChange={(e) => { setAbrirAlTerminar(e.target.checked); try { localStorage.setItem(CLAVE_ABRIR, e.target.checked ? "1" : "0"); } catch { /* nada */ } }} />
               {T("Abrir el resultado al terminar")}
-            </label>
-            <button className="boton boton--primario boton--grande rapida__hacer" disabled={!!motivo} onClick={ejecutar}>
+            </label>}
+            <button className="boton boton--primario boton--grande rapida__hacer" disabled={!!motivo || trabajando} onClick={ejecutar}>
               <I size={20} aria-hidden /> {T(h.nombre)}
             </button>
+            {trabajando && progreso && (
+              <div className="rapida__progreso" role="status" aria-live="polite">
+                <span>{progreso}</span>
+                <span className="rapida__barra"><span style={{ width: `${porcentaje}%` }} /></span>
+              </div>
+            )}
             {motivo && <p className="rapida__motivo">{motivo}</p>}
           </div>
         </div>

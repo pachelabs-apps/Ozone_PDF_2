@@ -12,3 +12,6 @@ src-tauri/gen/schemas/
 msix_identidad.txt
 build/
 /instalador/
+
+# motor de OCR y sus idiomas: se copian de node_modules al compilar
+/public/ocr/

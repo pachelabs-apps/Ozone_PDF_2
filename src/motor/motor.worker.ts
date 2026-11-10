@@ -343,6 +343,11 @@ const ops: Record<string, (a: any) => any> = {
     return { lista, __transferir: lista.map((x) => x.datos.buffer) };
   },
   aTexto() { return H.aTexto(documento()); },
+  paginaParaOcr({ i, dpi }: { i: number; dpi: number }) {
+    const r = H.paginaParaOcr(mupdf, documento(), i, dpi);
+    return { ...r, __transferir: [r.png.buffer] };
+  },
+  agregarCapaTexto({ i, pdf }: { i: number; pdf: Uint8Array }) { H.agregarCapaTexto(mupdf, documento(), i, pdf); return true; },
 
   guardar({ clave, quitarClave }: { clave?: string; quitarClave?: boolean } = {}) {
     let opciones = "garbage=compact,compress=yes";

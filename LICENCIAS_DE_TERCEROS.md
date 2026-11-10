@@ -9,6 +9,9 @@ Esta lista se revisó el 7 de noviembre de 2026: no hay ninguna pieza con licenc
 |---|---|---|
 | MuPDF.js | Motor que lee, dibuja y edita los PDF | AGPL-3.0-or-later (por eso Ozone PDF también es AGPL) |
 | React y React DOM | Pantalla de la app | MIT |
+| Tesseract (tesseract.js y tesseract.js-core) | Reconocimiento de texto (OCR), corre dentro de la app | Apache-2.0 |
+| Leptonica | Procesamiento de imágenes usado por Tesseract | BSD-2-Clause |
+| Datos de idiomas de Tesseract (tessdata) | Modelos para leer español, inglés, alemán, chino, japonés y ruso | Apache-2.0 (empaquetados en `@tesseract.js-data/*`, MIT) |
 | Tauri 2 y sus plugins | App de escritorio y celular | MIT o Apache-2.0 |
 | Lucide | Íconos | ISC |
 | Atkinson Hyperlegible | Tipografía del texto (diseñada para leer mejor) | SIL Open Font License 1.1 (`public/fuentes/LICENCIA-*.txt`) |
@@ -26,6 +29,11 @@ Notas: Apache-2.0 y MPL-2.0 son compatibles con AGPL-3.0. Las que ofrecen varias
 | `@tauri-apps/plugin-dialog@2.8.4` | MIT OR Apache-2.0 |
 | `@tauri-apps/plugin-fs@2.7.1` | MIT OR Apache-2.0 |
 | `@tauri-apps/plugin-opener@2.7.2` | MIT OR Apache-2.0 |
+| `tesseract.js@7.0.0` | Apache-2.0 |
+| `tesseract.js-core@7.0.0` | Apache-2.0 |
+| `bmp-js@0.1.0`, `is-url@1.2.4`, `node-fetch@2.7.0`, `regenerator-runtime@0.13.11`, `zlibjs@0.3.1`, `opencollective-postinstall@2.0.3` (usadas por tesseract.js) | MIT |
+| `idb-keyval@6.3.0`, `wasm-feature-detect@1.10.0` (usadas por tesseract.js) | Apache-2.0 |
+| `@tesseract.js-data/spa`, `eng`, `deu`, `chi_sim`, `jpn`, `rus` (1.0.0) | MIT (datos Apache-2.0) |
 | `@types/react@19.3.0` | MIT |
 | `csstype@3.2.3` | MIT |
 | `lucide-react@1.70.0` | ISC |

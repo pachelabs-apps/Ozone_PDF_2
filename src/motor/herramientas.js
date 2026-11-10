@@ -335,3 +335,52 @@ export function aTexto(doc) {
   }
   return partes;
 }
+
+// ---------- OCR: hacer buscable un PDF escaneado ----------
+// Dibuja una página como imagen para leerla. Si la página ya tiene texto, se avisa para no duplicarlo.
+export function paginaParaOcr(mupdf, doc, i, dpi) {
+  const pag = doc.loadPage(i);
+  const st = pag.toStructuredText();
+  const conTexto = st.asText().replace(/\s+/g, "").length > 15;
+  st.destroy();
+  const b = pag.getBounds();
+  let k = dpi / 72;
+  const lado = Math.max(b[2] - b[0], b[3] - b[1]) * k;
+  if (lado > 4500) k *= 4500 / lado; // páginas enormes: se limita para no quedarse sin memoria
+  const pix = pag.toPixmap(mupdf.Matrix.scale(k, k), mupdf.ColorSpace.DeviceRGB, false, true);
+  const png = pix.asPNG().slice();
+  pix.destroy();
+  return { png, conTexto, dpi: k * 72 };
+}
+
+// Pega encima de la página i el texto invisible que armó el OCR (un PDF de una página con solo texto).
+// La página se ve igual; el texto queda debajo de la imagen para buscar (Ctrl+F), seleccionar y copiar.
+export function agregarCapaTexto(mupdf, doc, i, bytes) {
+  const fuente = mupdf.Document.openDocument(bytes, "application/pdf").asPDF();
+  try {
+    const sobj = fuente.findPage(0);
+    const mb = sobj.getInheritable("MediaBox");
+    const wt = mb.get(2).asNumber() - mb.get(0).asNumber(), ht = mb.get(3).asNumber() - mb.get(1).asNumber();
+    const c = sobj.get("Contents"); // ojo: un stream se lee desde la referencia, no desde el objeto resuelto
+    const trozos = [];
+    const lista = c.resolve();
+    if (lista.isArray()) for (let k = 0; k < lista.length; k++) trozos.push(lista.get(k).readStream().asUint8Array().slice());
+    else trozos.push(c.readStream().asUint8Array().slice());
+    const total = trozos.reduce((s, t) => s + t.length + 1, 0);
+    const contenido = new Uint8Array(total);
+    let o = 0;
+    for (const t of trozos) { contenido.set(t, o); o += t.length; contenido[o++] = 10; }
+    const injerto = doc.newGraftMap();
+    const recursos = injerto.graftObject(sobj.getInheritable("Resources"));
+    const caja = doc.newArray();
+    [0, 0, wt, ht].forEach((v) => caja.push(v));
+    const forma = doc.addStream(contenido, { Type: doc.newName("XObject"), Subtype: doc.newName("Form"), BBox: caja, Resources: recursos });
+    const obj = doc.findPage(i);
+    const { ancho, alto, m } = geometria(obj);
+    const nombre = `OzOcr${i}`;
+    subDict(doc, recursosPropios(doc, obj), "XObject").put(nombre, forma);
+    dibujarEncima(doc, obj, `q ${m.map(num).join(" ")} cm ${num(ancho / wt)} 0 0 ${num(alto / ht)} 0 0 cm /${nombre} Do Q`);
+  } finally {
+    fuente.destroy();
+  }
+}

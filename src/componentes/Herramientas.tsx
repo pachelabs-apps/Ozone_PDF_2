@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Combine, Scissors, FileOutput, Minimize2, Lock, Stamp, ListOrdered, Scaling, FileImage, FileText, Eraser, Camera, X, ArrowLeft,
-  RotateCw, Trash2, ArrowDownUp, Images, LockOpen, Search,
+  RotateCw, Trash2, ArrowDownUp, Images, LockOpen, Search, ScanText, FileSearch,
 } from "lucide-react";
 import { T } from "../i18n";
 import { motor, type InfoDoc, type Seguridad } from "../motor/motor";
@@ -9,7 +9,7 @@ import { abrirVarios, guardarArchivo, guardarVarios, base } from "../archivos";
 
 export type IdHerramienta =
   | "unir" | "dividir" | "extraer" | "comprimir" | "clave" | "marca" | "numerar" | "ajustar" | "imagenes" | "texto" | "limpiar" | "escanear"
-  | "rotar" | "eliminar" | "ordenar" | "img2pdf" | "quitarclave";
+  | "rotar" | "eliminar" | "ordenar" | "img2pdf" | "quitarclave" | "buscable" | "ocrimg";
 
 type Item = { id: IdHerramienta; icono: typeof Lock; nombre: string; desc: string; grupo: "rapida" | "editar"; palabras?: string };
 
@@ -26,6 +26,8 @@ export const LISTA: Item[] = [
   { id: "quitarclave", icono: LockOpen, nombre: "Quitar contraseña", desc: "Una copia sin contraseña, si la sabés.", grupo: "rapida", palabras: "desproteger sacar contrasena password descifrar" },
   { id: "imagenes", icono: FileImage, nombre: "PDF a imágenes", desc: "Cada página como JPG o PNG.", grupo: "rapida", palabras: "jpg png foto convertir" },
   { id: "texto", icono: FileText, nombre: "PDF a texto", desc: "Copiá todo el texto a un .txt.", grupo: "rapida", palabras: "txt copiar extraer texto" },
+  { id: "buscable", icono: FileSearch, nombre: "Hacer buscable un PDF", desc: "Que un PDF escaneado se pueda buscar y copiar (OCR).", grupo: "rapida", palabras: "ocr escaneado reconocer texto buscar copiar seleccionar leer" },
+  { id: "ocrimg", icono: ScanText, nombre: "Imagen a texto", desc: "Leé el texto de fotos o escaneos (OCR).", grupo: "rapida", palabras: "ocr reconocer leer texto foto escaneo copiar transcribir" },
   { id: "limpiar", icono: Eraser, nombre: "Limpiar datos ocultos", desc: "Borrá autor, programa y otros datos.", grupo: "rapida", palabras: "privacidad metadatos autor adjuntos" },
   { id: "rotar", icono: RotateCw, nombre: "Rotar páginas", desc: "Girá todas o solo algunas.", grupo: "editar", palabras: "girar dar vuelta orientacion" },
   { id: "eliminar", icono: Trash2, nombre: "Eliminar páginas", desc: "Quitá las páginas que no querés.", grupo: "editar", palabras: "borrar sacar quitar" },
