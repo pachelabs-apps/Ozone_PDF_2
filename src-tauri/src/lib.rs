@@ -108,6 +108,8 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager;
             // la ventana abre a un tamaño que entra en la pantalla, para no tener que scrollear el inicio
+            // en el celular la app ocupa toda la pantalla: esto es solo para la compu
+            #[cfg(desktop)]
             if let Some(w) = app.get_webview_window("main") {
                 if let Ok(Some(m)) = w.current_monitor() {
                     let esc = m.scale_factor();
@@ -120,6 +122,8 @@ pub fn run() {
                 }
                 let _ = w.show();
             }
+            #[cfg(mobile)]
+            let _ = app;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![archivo_inicial, carpeta_nube, origen_instalacion])
