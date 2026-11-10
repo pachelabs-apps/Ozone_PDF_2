@@ -17,6 +17,8 @@ export function leerA11y(): A11y {
   } catch { /* nada */ }
   return {
     ...A11Y_INICIAL,
+    // en el celular la letra arranca un poco más grande (se lee mejor en pantalla chica); se puede cambiar
+    tamano: window.matchMedia("(max-width: 760px)").matches ? "grande" : "normal",
     contraste: window.matchMedia("(prefers-contrast: more)").matches,
     movimiento: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   };

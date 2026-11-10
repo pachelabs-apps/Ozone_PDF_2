@@ -285,8 +285,24 @@ html.tema-oscuro .boton--peligro { background: #EDEEF1; color: #111; }
   .labcin-app { right: 4px; bottom: calc(112px + env(safe-area-inset-bottom)); }
   .labsin.labcin-app__personaje { width: 70px; }
   /* en el inicio no hay barra de herramientas abajo: Labcin baja y se achica para no tapar las tarjetas */
-  .app:not(.con-doc) .labcin-app { bottom: calc(6px + env(safe-area-inset-bottom)); }
-  .app:not(.con-doc) .labsin.labcin-app__personaje { width: 56px; }
+  .app:not(:has(.herramientas)) .labcin-app { bottom: calc(6px + env(safe-area-inset-bottom)); }
+  .app:not(:has(.herramientas)) .labsin.labcin-app__personaje { width: 56px; }
+  /* con un PDF abierto, el nombre del archivo es lo importante: reemplaza a "Ozone PDF" */
+  .app.con-doc .marca__texto strong { display: none; }
+  .app.con-doc .marca__archivo { color: #fff; font-weight: 700; font-size: .95rem; margin: 0; max-width: 34vw; }
+  /* botones del inicio a lo ancho, más fáciles de tocar */
+  .inicio__botones { width: 100%; }
+  .inicio__botones .boton { flex: 1 1 100%; justify-content: center; }
+  /* en las herramientas rápidas, el botón principal no queda debajo de Labcin */
+  .rapida { padding-bottom: 96px; }
+  .app:not(:has(.herramientas)) .labcin-volver { bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .app.con-doc .marca__texto { flex: 1; min-width: 64px; }
+  .app.con-doc .marca__archivo { max-width: none; }
+}
+@media (max-width: 400px) {
+  /* celulares angostos: con un PDF abierto el logo deja lugar al nombre del archivo */
+  .app.con-doc .marca__logo { display: none; }
+  .barra__acciones { gap: 4px; }
   .labcin-app__globo { max-width: calc(100vw - 92px); margin-bottom: 44px; padding: 10px 12px 8px; }
   .labcin-app__globo p { font-size: .86rem; }
   .labcin-volver { bottom: calc(118px + env(safe-area-inset-bottom)); right: 10px; width: 40px; height: 40px; }
@@ -723,6 +739,7 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
 }
 @media (max-width: 400px) {
   .marca__archivo { display: none; }
+  .app.con-doc .marca__archivo { display: block; } /* con un PDF abierto el nombre sí se ve (en lugar de "Ozone PDF") */
 }
 
 /* ---------- inicio compacto: todo entra sin scroll y Labcin no tapa ---------- */
