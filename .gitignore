@@ -15,3 +15,9 @@ build/
 
 # motor de OCR y sus idiomas: se copian de node_modules al compilar
 /public/ocr/
+
+# paquetes de Android y claves de firma: nunca al repositorio
+*.aab
+*.apk
+*.jks
+*.keystore

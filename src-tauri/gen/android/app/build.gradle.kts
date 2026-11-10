@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.FileInputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -25,6 +26,20 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    // Firma de la versión que se sube a Google Play. La clave la crea CREAR_CLAVE_ANDROID.bat y queda FUERA del
+    // repositorio (en tu carpeta de usuario); keystore.properties solo dice dónde está y no se sube a GitHub.
+    signingConfigs {
+        create("release") {
+            val archivo = rootProject.file("keystore.properties")
+            if (archivo.exists()) {
+                val props = Properties().apply { FileInputStream(archivo).use { load(it) } }
+                keyAlias = props["keyAlias"] as String
+                keyPassword = props["password"] as String
+                storeFile = file(props["storeFile"] as String)
+                storePassword = props["password"] as String
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -39,6 +54,7 @@ android {
             }
         }
         getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
             optimization {
                enable = true
             }
