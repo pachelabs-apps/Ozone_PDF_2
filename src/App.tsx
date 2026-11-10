@@ -753,9 +753,9 @@ export default function App() {
           <button className="icono icono--barra" onClick={() => setPaleta(true)} title={T("Buscar herramienta") + " (Ctrl+K)"} aria-label={T("Buscar herramienta")}>
             <Search size={19} />
           </button>
-          <button className="icono icono--barra solo-celular" onClick={() => setAjustes((v) => !v)} aria-expanded={ajustes}
+          <button className="boton boton--suave solo-celular" onClick={() => setAjustes((v) => !v)} aria-expanded={ajustes}
             title={T("Ajustes")} aria-label={T("Ajustes")}>
-            <Settings size={20} />
+            <Settings size={18} aria-hidden />
           </button>
           <button className="icono icono--barra tema-btn solo-compu" onClick={() => cambiarTema()}
             title={T("Tema: {t}", { t: T(NOMBRE_TEMA[tema]) }) + " — " + T("tocá para cambiar")} aria-label={T("Tema: {t}", { t: T(NOMBRE_TEMA[tema]) })}>
