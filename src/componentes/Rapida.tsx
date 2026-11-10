@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowUp, ArrowDown, X, FilePlus2, CheckCircle2, ShieldAlert, BadgeCheck, Lock, FileText, Copy, Download } from "lucide-react";
 import { T, idioma } from "../i18n";
 import { IDIOMAS_OCR, ocrDeLaApp, leerTexto, capaDeTexto, alAvanzar, type IdiomaOcr } from "../ocr";
+import { prepararImagen } from "../imagenes";
 import { motorAparte, type Seguridad } from "../motor/motor";
 import { LISTA, type IdHerramienta } from "./Herramientas";
 import { abrirEnlace, abrirVarios, abrirConDialogo, abrirImagenes, guardarArchivo, guardarVarios, base, type Abierto } from "../archivos";
@@ -93,17 +94,22 @@ export default function Rapida(p: {
       return { ...a, error: T("No se pudo abrir. Verificá que sea un PDF válido.") };
     }
   }
-  async function agregar(nuevos: { nombre: string; datos: Uint8Array; ruta?: string }[]) {
+  async function agregar(nuevos: { nombre: string; datos: Uint8Array; ruta?: string; clave?: string }[]) {
     if (!nuevos.length) return;
     p.alOcupado(true);
     try {
       const lista: Archivo[] = [];
-      for (const n of nuevos) lista.push(await revisar({ id: siguiente++, nombre: n.nombre, datos: n.datos, ruta: n.ruta, tamano: n.datos.byteLength, imagen: esImagen }));
+      for (const n of nuevos) {
+        let a = await revisar({ id: siguiente++, nombre: n.nombre, datos: n.datos, ruta: n.ruta, tamano: n.datos.byteLength, imagen: esImagen });
+        // viene del editor con la contraseña ya escrita: no se la vuelve a pedir
+        if (n.clave && (a.necesitaClave || a.seguridad?.restringido)) a = await conClave(a, n.clave);
+        lista.push(a);
+      }
       setArchivos((v) => (varios ? [...v, ...lista] : lista.slice(0, 1)));
       setResultado(null);
     } finally { p.alOcupado(false); }
   }
-  const aBytes = (a: Abierto) => ({ nombre: a.nombre, ruta: a.ruta, datos: new Uint8Array(a.datos) });
+  const aBytes = (a: Abierto) => ({ nombre: a.nombre, ruta: a.ruta, datos: new Uint8Array(a.datos), clave: a.clave });
 
   useEffect(() => {
     if (listo.current) return;
@@ -128,14 +134,18 @@ export default function Rapida(p: {
   function mover(i: number, d: number) {
     setArchivos((v) => { const n = [...v]; const j = i + d; if (j < 0 || j >= n.length) return v; [n[i], n[j]] = [n[j], n[i]]; return n; });
   }
-  async function probarClave(a: Archivo, clave: string) {
+  async function conClave(a: Archivo, clave: string): Promise<Archivo> {
     const m = motorAparte();
     await m.cerrar();
     await m.abrir(a.datos.slice().buffer);
     const r = await m.clave(clave);
-    setArchivos((v) => v.map((x) => x.id !== a.id ? x : "incorrecta" in r
-      ? { ...x, error: T("Contraseña incorrecta.") }
-      : { ...x, necesitaClave: false, clave, error: undefined, paginas: r.paginas.length, seguridad: r.seguridad }));
+    return "incorrecta" in r
+      ? { ...a, error: T("Contraseña incorrecta.") }
+      : { ...a, necesitaClave: false, clave, error: undefined, paginas: r.paginas.length, seguridad: r.seguridad };
+  }
+  async function probarClave(a: Archivo, clave: string) {
+    const b = await conClave(a, clave);
+    setArchivos((v) => v.map((x) => (x.id !== a.id ? x : b)));
   }
 
   // ---------- lo que impide ejecutar ----------
@@ -204,24 +214,27 @@ export default function Rapida(p: {
         r = { texto: leido ? T("Listo: este es el texto que encontré.") : T("No encontré texto en las imágenes."), leido };
       } else if (p.id === "img2pdf") {
         await m.cerrar();
-        await m.desdeImagenes(archivos.map((x) => x.datos.slice()), false);
+        const listas: Uint8Array[] = [];
+        for (const x of archivos) listas.push(await prepararImagen(x.datos.slice())); // fotos derechas y formatos que el motor entiende
+        await m.desdeImagenes(listas, false);
         const { datos } = await m.guardar();
         const hoy = new Date().toISOString().slice(0, 10);
         const nombre = `${T("Imágenes")} ${hoy}.pdf`;
         const ruta = await guardarArchivo(datos, nombre, junto);
-        r = ruta ? { texto: T("Listo: {n} imágenes en un PDF.", { n: archivos.length }), pdf: { nombre, datos, ruta: typeof ruta === "string" && /[\\/]/.test(ruta) ? ruta : undefined } } : null;
+        r = ruta ? { texto: archivos.length === 1 ? T("Listo: la imagen quedó en un PDF.") : T("Listo: {n} imágenes en un PDF.", { n: archivos.length }), pdf: { nombre, datos, ruta: typeof ruta === "string" && /[\\/]/.test(ruta) ? ruta : undefined } } : null;
       } else {
         await abrirEnMotor(a);
         if (p.id === "comprimir") {
-          const c = await m.comprimir(nivel);
+          await m.comprimir(nivel);
           const { datos } = await m.guardar(a.clave ? { clave: a.clave } : {});
           const ahorro = Math.max(0, Math.round((1 - datos.byteLength / a.tamano) * 100));
-          r = await unPdf(datos, "comprimido", c.achicadas || ahorro > 2
-            ? T("Listo: de {a} a {b} (−{p}%).", { a: tam(a.tamano), b: tam(datos.byteLength), p: ahorro })
-            : T("Este PDF ya estaba bien comprimido."));
+          // si no se achicó (o hasta creció), no se guarda una copia que pesa igual o más
+          if (datos.byteLength >= a.tamano * 0.98) r = { texto: T("Este PDF ya estaba bien comprimido: no se pudo achicar más.") };
+          else r = await unPdf(datos, "comprimido", T("Listo: de {a} a {b} (−{p}%).", { a: tam(a.tamano), b: tam(datos.byteLength), p: ahorro }));
         } else if (p.id === "extraer") {
-          const x = await m.extraer(rangos);
-          r = await unPdf(x.datos, `p${rangos.replace(/\s+/g, "").replace(/[^\d,;-]/g, "")}`, T("Listo: se guardaron {n} páginas en un archivo nuevo.", { n: x.paginas }));
+          const x = await m.extraer(rangos, a.clave);
+          r = await unPdf(x.datos, `p${rangos.replace(/\s+/g, "").replace(/[^\d,;-]/g, "")}`,
+            (x.paginas === 1 ? T("Listo: se guardó 1 página en un archivo nuevo.") : T("Listo: se guardaron {n} páginas en un archivo nuevo.", { n: x.paginas })) + avisoClave(a));
         } else if (p.id === "clave") {
           const { datos } = await m.guardar({ clave: c1 });
           r = await unPdf(datos, "con contraseña", T("Listo: se guardó una copia con contraseña."));
@@ -234,13 +247,13 @@ export default function Rapida(p: {
           r = await unPdf(datos, "limpio", T("Listo: se guardó una copia sin datos ocultos."));
         } else if (p.id === "dividir") {
           const valor = modo === "rangos" ? rangos : modo === "tamano" ? mb * 1024 * 1024 : null;
-          const x = await m.dividir(modo, valor);
+          const x = await m.dividir(modo, valor, a.clave);
           const lista = x.partes.map((y, i) => ({ nombre: `${b} - ${T("parte")} ${i + 1}${y.desde === y.hasta ? ` (p${y.desde})` : ` (p${y.desde}-${y.hasta})`}.pdf`, datos: y.datos }));
-          if (await guardarVarios(lista)) r = { texto: T("Listo: se crearon {n} archivos.", { n: lista.length }) };
+          if (await guardarVarios(lista)) r = { texto: creados(lista.length) + avisoClave(a) };
         } else if (p.id === "imagenes") {
           const x = await m.aImagenes(dpi, formato);
           const lista = x.lista.map((y) => ({ nombre: `${b} - ${String(y.pagina).padStart(3, "0")}.${formato}`, datos: y.datos }));
-          if (await guardarVarios(lista)) r = { texto: T("Listo: se crearon {n} archivos.", { n: lista.length }) };
+          if (await guardarVarios(lista)) r = { texto: creados(lista.length) };
         } else if (p.id === "buscable") {
           const n = a.paginas || 0;
           let hechas = 0, yaTenian = 0;
@@ -272,7 +285,8 @@ export default function Rapida(p: {
     } catch (e: any) {
       console.error(e);
       const msg = String(e?.message || "");
-      p.alAviso(msg.includes("RANGO") ? T("Revisá las páginas: por ejemplo 1-3, 5")
+      p.alAviso(msg.includes("RANGO") ? T("Revisá las páginas: por ejemplo 1-3, 5 (y que existan en el PDF)")
+        : msg.includes("CLAVE_COMA") ? T("La contraseña no puede tener comas.")
         : msg.includes("CON_CLAVE") ? T("Uno de los PDF tiene contraseña. Abrilo primero y guardalo sin contraseña.")
         : T("Algo salió mal. Probá de nuevo."), "error");
     } finally {
@@ -281,6 +295,9 @@ export default function Rapida(p: {
       alAvanzar(null);
     }
   }
+  const creados = (n: number) => (n === 1 ? T("Listo: se creó 1 archivo.") : T("Listo: se crearon {n} archivos.", { n }));
+  // las copias de un PDF con contraseña salen con la misma contraseña (salvo que tenga comas)
+  const avisoClave = (a: Archivo) => (!a.clave ? "" : a.clave.includes(",") ? " " + T("Ojo: las copias quedaron sin contraseña.") : " " + T("Con la misma contraseña que el original."));
   async function guardarLeido(texto: string) {
     const nombre = `${archivos.length === 1 ? base(archivos[0].nombre) : T("Texto")}.txt`;
     if (await guardarArchivo(new TextEncoder().encode(texto), nombre, archivos[0]?.ruta)) p.alAviso(T("Listo: texto guardado."), "ok");
@@ -294,7 +311,7 @@ export default function Rapida(p: {
       onDrop={soltar}>
       <div className="rapida__cabeza">
         <img className="rapida__labcin" src="/img/intro-avatar-solo.png" alt="" width={52} height={52} />
-        <button className="icono" onClick={p.alVolver} aria-label={T("Volver")} title={T("Volver")}><ArrowLeft size={20} /></button>
+        <button className="icono" onClick={p.alVolver} disabled={trabajando} aria-label={T("Volver")} title={T("Volver")}><ArrowLeft size={20} /></button>
         <span className="tarjeta__icono"><I size={22} aria-hidden /></span>
         <div>
           <h1 id="titulo-rapida">{T(h.nombre)}</h1>
@@ -387,7 +404,7 @@ export default function Rapida(p: {
               <Opciones nombre="modo" titulo="Cómo dividir" valor={modo} alCambiar={setModo}
                 opciones={[{ v: "cada", t: "Cada página por separado" }, { v: "rangos", t: "Por rangos" }, { v: "tamano", t: "Por tamaño" }]} />
               {modo === "cada" && total > 0 && <p className="modal__ayuda">{T("Se crean {n} archivos, uno por página.", { n: total })}</p>}
-              {modo === "rangos" && <label className="campo-etiqueta">{T("Rangos separados por punto y coma")}
+              {modo === "rangos" && <label className="campo-etiqueta">{T("Un archivo por rango, separados por punto y coma")}
                 <input className="campo" value={rangos} onChange={(e) => setRangos(e.target.value)} placeholder={`1-3; 4-${Math.max(4, total)}`} /></label>}
               {modo === "tamano" && <Opciones<number | "otro"> nombre="mb" titulo="Máximo por archivo" valor={mbOpcion} alCambiar={setMbOpcion}
                 opciones={[...[1, 2, 5, 10, 20].map((v) => ({ v, t: `${v} MB` })), { v: "otro" as const, t: "Otro" }]} />}

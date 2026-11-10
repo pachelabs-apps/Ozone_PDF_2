@@ -315,7 +315,7 @@ function Rotar(p: Sub) {
     if (!r) return;
     const { cambiadas, ...info } = r;
     p.alCambiarDoc(info);
-    p.alAviso(T("Listo: {n} páginas giradas.", { n: cambiadas }), "ok");
+    p.alAviso(cambiadas === 1 ? T("Listo: 1 página girada.") : T("Listo: {n} páginas giradas.", { n: cambiadas }), "ok");
     p.alCerrar();
   }
   return (
@@ -339,7 +339,7 @@ function Eliminar(p: Sub) {
     if (!r) return;
     const { cambiadas, ...info } = r;
     p.alCambiarDoc(info);
-    p.alAviso(T("Listo: se borraron {n} páginas. Ctrl+Z las recupera.", { n: cambiadas }), "ok");
+    p.alAviso(cambiadas === 1 ? T("Listo: se borró 1 página. Ctrl+Z la recupera.") : T("Listo: se borraron {n} páginas. Ctrl+Z las recupera.", { n: cambiadas }), "ok");
     p.alCerrar();
   }
   return (

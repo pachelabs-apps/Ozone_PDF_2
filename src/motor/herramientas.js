@@ -108,10 +108,12 @@ export function leerRangos(texto, total) {
     const m = p.match(/^(\d*)\s*[-–]\s*(\d*)$/);
     if (m) {
       const a = m[1] ? +m[1] : 1, b = m[2] ? +m[2] : total;
-      for (let k = Math.max(1, a); k <= Math.min(total, b); k++) out.push(k - 1);
+      if (a < 1 || a > total || b < a || (m[2] && b > total)) return null; // páginas que no existen: se avisa
+      for (let k = a; k <= b; k++) out.push(k - 1);
     } else if (/^\d+$/.test(p)) {
       const k = +p;
-      if (k >= 1 && k <= total) out.push(k - 1);
+      if (k < 1 || k > total) return null;
+      out.push(k - 1);
     } else return null;
   }
   return out;
@@ -124,8 +126,11 @@ export function documentoCon(mupdf, doc, indices) {
   return nuevo;
 }
 
-export function aBytes(d) {
-  const b = d.saveToBuffer("garbage=compact,compress=yes");
+// con clave: la copia sale protegida con la misma contraseña que el original
+export function aBytes(d, clave) {
+  let opciones = "garbage=compact,compress=yes";
+  if (clave && !clave.includes(",")) opciones += `,encrypt=aes-256,user-password=${clave},owner-password=${clave}`;
+  const b = d.saveToBuffer(opciones);
   const u = b.asUint8Array().slice();
   b.destroy();
   return u;
@@ -145,13 +150,13 @@ export function unir(mupdf, doc, archivos) {
 }
 
 // ---------- dividir ----------
-export function dividir(mupdf, doc, modo, valor) {
+export function dividir(mupdf, doc, modo, valor, clave) {
   const total = doc.countPages();
   const grupos = [];
   if (modo === "cada") {
     for (let i = 0; i < total; i++) grupos.push([i]);
   } else if (modo === "rangos") {
-    for (const parte of String(valor).split(/[;,]+/)) {
+    for (const parte of String(valor).split(/;+/)) { // cada archivo va separado por ";" (la coma junta páginas: "1-3, 5")
       const r = leerRangos(parte, total);
       if (r === null) throw new Error("RANGO");
       if (r.length) grupos.push(r);
@@ -171,7 +176,7 @@ export function dividir(mupdf, doc, modo, valor) {
   }
   return grupos.map((g) => {
     const d = documentoCon(mupdf, doc, g);
-    const datos = aBytes(d);
+    const datos = aBytes(d, clave);
     d.destroy();
     const desde = g[0] + 1, hasta = g[g.length - 1] + 1;
     return { paginas: g.length, desde, hasta, datos };
@@ -306,6 +311,8 @@ export function limpiarDatos(doc) {
   for (let i = 0; i < doc.countPages(); i++) {
     const p = doc.loadPage(i);
     for (const a of p.getAnnotations()) {
+      // las notas con un archivo adjunto (clip) también son adjuntos ocultos: se borran
+      if (a.getType() === "FileAttachment") { p.deleteAnnotation(a); notas++; continue; }
       try { if (a.hasAuthor() && a.getAuthor()) { a.setAuthor(""); notas++; } } catch { /* nada */ }
     }
     doc.findPage(i).delete("PieceInfo");

@@ -129,7 +129,11 @@ function enderezar(img: Img, esq: Punto[], maximo: number): Img {
   const k = Math.min(1, maximo / Math.max(W, H));
   W = Math.max(16, Math.round(W * k)); H = Math.max(16, Math.round(H * k));
   // H lleva cada punto de la salida a la foto original
+  // esquinas en línea o encimadas: no forman una hoja; se avisa en vez de devolver una imagen negra
+  const area = Math.abs((esq[2][0] - esq[0][0]) * (esq[3][1] - esq[1][1]) - (esq[3][0] - esq[1][0]) * (esq[2][1] - esq[0][1])) / 2;
+  if (area < 100) throw new Error("ESQUINAS");
   const m = homografia([[0, 0], [W, 0], [W, H], [0, H]], esq);
+  if (m.some((v) => !Number.isFinite(v))) throw new Error("ESQUINAS");
   const out = new Uint8ClampedArray(W * H * 4);
   const sw = img.w, sh = img.h, s = img.d;
   for (let y = 0; y < H; y++) {

@@ -11,6 +11,8 @@ type Rect = [number, number, number, number];
 let doc: mupdf.PDFDocument | null = null;
 const instantaneas: Uint8Array[] = [];
 let original: Uint8Array | null = null; // el archivo tal como está en disco (para revisar la firma)
+let helv: mupdf.Font | null = null; // para medir el texto de las notas
+let claveUsada: string | null = null; // la contraseña con la que se abrió (para deshacer y volver a guardar igual)
 
 // ---------- seguridad: firma digital, restricciones y adjuntos (como en Ozone PDF 1) ----------
 // Firma "valida": al menos una firma cubre el archivo completo (no se modificó después de firmar).
@@ -95,26 +97,36 @@ const MOVIBLES = new Set(["Stamp", "FreeText", "Square", "Circle", "Redact", "In
 const REDIMENSIONABLES = new Set(["Stamp", "FreeText", "Square", "Circle", "Redact"]);
 
 const ops: Record<string, (a: any) => any> = {
+  // Abre un PDF nuevo. Si el archivo está roto, el que ya estaba abierto queda intacto.
   abrir({ datos }: { datos: ArrayBuffer }) {
-    instantaneas.length = 0;
-    doc?.destroy();
-    doc = null;
     const d = mupdf.Document.openDocument(new Uint8Array(datos), "application/pdf");
     if (!(d instanceof mupdf.PDFDocument)) {
       d.destroy();
       throw new Error("NO_PDF");
     }
+    const antes = { doc, original, claveUsada, instantaneas: instantaneas.slice() };
     doc = d;
     original = new Uint8Array(datos);
-    if (d.needsPassword()) return { necesitaClave: true };
-    return { ...info(), seguridad: seguridad() };
+    claveUsada = null;
+    instantaneas.length = 0;
+    try {
+      const r = d.needsPassword() ? { necesitaClave: true } : { ...info(), seguridad: seguridad() };
+      antes.doc?.destroy();
+      return r;
+    } catch (e) {
+      d.destroy();
+      doc = antes.doc; original = antes.original; claveUsada = antes.claveUsada;
+      instantaneas.push(...antes.instantaneas);
+      throw e;
+    }
   },
 
-  cerrar() { instantaneas.length = 0; doc?.destroy(); doc = null; original = null; return true; },
+  cerrar() { instantaneas.length = 0; doc?.destroy(); doc = null; original = null; claveUsada = null; return true; },
 
   clave({ clave }: { clave: string }) {
     const ok = documento().authenticatePassword(clave);
     if (!ok) return { incorrecta: true };
+    claveUsada = clave;
     return { ...info(), seguridad: seguridad() };
   },
 
@@ -151,8 +163,17 @@ const ops: Record<string, (a: any) => any> = {
   texto({ pagina, x, y, texto, tam, color }: { pagina: number; x: number; y: number; texto: string; tam: number; color: number[] }) {
     const p = documento().loadPage(pagina);
     const lineas = texto.split("\n");
-    const largo = Math.max(...lineas.map((l) => l.length), 1);
-    const w = Math.max(largo * tam * 0.56 + 6, 30);
+    // ancho real de cada línea con la fuente Helvetica; lo que no tiene (chino, ruso…) se cuenta como un cuadrado entero
+    helv ??= new mupdf.Font("Helvetica");
+    const anchoDe = (l: string) => {
+      let s = 0;
+      for (const ch of l) {
+        const g = helv!.encodeCharacter(ch.codePointAt(0)!);
+        s += g > 0 ? helv!.advanceGlyph(g) : 1;
+      }
+      return s * tam;
+    };
+    const w = Math.max(Math.max(...lineas.map(anchoDe), 0) * 1.08 + 10, 30);
     const h = lineas.length * tam * 1.25 + 6;
     const an = p.createAnnotation("FreeText");
     an.setRect([x, y, x + w, y + h]);
@@ -253,7 +274,7 @@ const ops: Record<string, (a: any) => any> = {
 
   // ---------- deshacer cambios grandes (páginas, herramientas): se guarda una copia antes ----------
   instantanea() {
-    const buf = documento().saveToBuffer("encrypt=none");
+    const buf = documento().saveToBuffer("");
     const copia = buf.asUint8Array().slice();
     buf.destroy();
     instantaneas.push(copia);
@@ -266,6 +287,7 @@ const ops: Record<string, (a: any) => any> = {
     if (!copia) throw new Error("SIN_COPIA");
     doc?.destroy();
     doc = mupdf.Document.openDocument(copia, "application/pdf") as mupdf.PDFDocument;
+    if (claveUsada) doc.authenticatePassword(claveUsada);
     return info();
   },
   olvidarInstantaneas() { instantaneas.length = 0; return true; },
@@ -281,8 +303,8 @@ const ops: Record<string, (a: any) => any> = {
     if (!doc) doc = new mupdf.PDFDocument();
     H.unir(mupdf, doc, archivos); return info();
   },
-  dividir({ modo, valor }: { modo: string; valor: any }) {
-    const partes = H.dividir(mupdf, documento(), modo, valor);
+  dividir({ modo, valor, clave }: { modo: string; valor: any; clave?: string }) {
+    const partes = H.dividir(mupdf, documento(), modo, valor, clave);
     return { partes, __transferir: partes.map((p) => p.datos.buffer) };
   },
   // rotar, borrar u ordenar varias páginas a la vez (como en Ozone PDF 1)
@@ -320,11 +342,11 @@ const ops: Record<string, (a: any) => any> = {
     });
     return info();
   },
-  extraer({ rangos }: { rangos: string }) {
+  extraer({ rangos, clave }: { rangos: string; clave?: string }) {
     const lista = H.leerRangos(rangos, documento().countPages());
     if (!lista || !lista.length) throw new Error("RANGO");
     const d = H.documentoCon(mupdf, documento(), lista);
-    const datos = H.aBytes(d); d.destroy();
+    const datos = H.aBytes(d, clave); d.destroy();
     return { datos, paginas: lista.length, __transferir: [datos.buffer] };
   },
   comprimir({ nivel }: { nivel: string }) {
@@ -351,8 +373,13 @@ const ops: Record<string, (a: any) => any> = {
 
   guardar({ clave, quitarClave }: { clave?: string; quitarClave?: boolean } = {}) {
     let opciones = "garbage=compact,compress=yes";
-    if (clave) opciones += `,encrypt=aes-256,user-password=${clave},owner-password=${clave}`;
-    else if (quitarClave) opciones += ",encrypt=none";
+    // la misma contraseña con la que se abrió: se conserva el cifrado tal cual (y las restricciones del autor).
+    // Así también funciona una contraseña con comas, que no se puede escribir en las opciones.
+    if (clave && clave === claveUsada) { /* encrypt=keep es lo predeterminado */ }
+    else if (clave) {
+      if (clave.includes(",")) throw new Error("CLAVE_COMA");
+      opciones += `,encrypt=aes-256,user-password=${clave},owner-password=${clave}`;
+    } else if (quitarClave) opciones += ",encrypt=none";
     const buf = documento().saveToBuffer(opciones);
     const datos = new Uint8Array(buf.asUint8Array());
     buf.destroy();

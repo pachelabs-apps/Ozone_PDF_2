@@ -43,7 +43,7 @@ async function elegirDestino(defaultPath: string, filtro: { name: string; extens
   }
 }
 
-export type Abierto = { nombre: string; datos: ArrayBuffer; ruta?: string };
+export type Abierto = { nombre: string; datos: ArrayBuffer; ruta?: string; clave?: string };
 
 export async function abrirConDialogo(): Promise<Abierto | null> {
   if (enApp) {

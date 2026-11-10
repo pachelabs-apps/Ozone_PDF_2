@@ -31,6 +31,11 @@ function pedir<R>(op: string, args: any, transferir: Transferable[] = []): Promi
   if (!trabajador) {
     trabajador = new Worker(new URL("./escaner.worker.ts", import.meta.url), { type: "module" });
     trabajador.onmessage = (e) => { const f = pendientes.get(e.data.id); pendientes.delete(e.data.id); f?.(e.data); };
+    // si el worker se cae, se avisa a todo lo que esperaba (así "Procesando…" no queda trabado)
+    trabajador.onerror = (e) => {
+      for (const f of pendientes.values()) f({ ok: false, error: String(e.message || "ERROR") });
+      pendientes.clear(); trabajador?.terminate(); trabajador = null;
+    };
   }
   const id = ++nPedido;
   return new Promise((ok, mal) => {
@@ -102,7 +107,7 @@ export default function Escaner(p: {
       });
     } catch (e) {
       console.error(e);
-      setError(T("No se pudo abrir el archivo. Verificá que sea un PDF válido."));
+      setError(T("No se pudo abrir la imagen. Probá con otra foto (JPG o PNG)."));
     } finally {
       setTrabajando(false);
     }
@@ -126,28 +131,40 @@ export default function Escaner(p: {
 
   async function guardarEdicion(f: Foto) {
     setTrabajando(true);
-    const resultado = await procesar(f);
-    setFotos((a) => a.map((x) => {
-      if (x.id !== f.id) return x;
-      x.resultado && URL.revokeObjectURL(x.resultado.url);
-      return { ...f, resultado };
-    }));
-    setTrabajando(false);
-    setEditando(null);
+    try {
+      const resultado = await procesar(f);
+      setFotos((a) => a.map((x) => {
+        if (x.id !== f.id) return x;
+        x.resultado && URL.revokeObjectURL(x.resultado.url);
+        return { ...f, resultado };
+      }));
+      setEditando(null);
+    } catch (e) {
+      console.error(e);
+      setError(T("No se pudo procesar la foto. Revisá las esquinas y probá de nuevo."));
+    } finally {
+      setTrabajando(false);
+    }
   }
 
   async function filtroParaTodas(filtro: Filtro) {
     setFiltroGeneral(filtro);
     setTrabajando(true);
-    const nuevas: Foto[] = [];
-    for (const f of fotos) {
-      const g = { ...f, filtro };
-      f.resultado && URL.revokeObjectURL(f.resultado.url);
-      g.resultado = await procesar(g);
-      nuevas.push(g);
+    try {
+      const nuevas: Foto[] = [];
+      for (const f of fotos) {
+        const g = { ...f, filtro };
+        g.resultado = await procesar(g);
+        f.resultado && URL.revokeObjectURL(f.resultado.url);
+        nuevas.push(g);
+      }
+      setFotos(nuevas);
+    } catch (e) {
+      console.error(e);
+      setError(T("No se pudo procesar la foto. Revisá las esquinas y probá de nuevo."));
+    } finally {
+      setTrabajando(false);
     }
-    setFotos(nuevas);
-    setTrabajando(false);
   }
 
   function mover(i: number, d: number) {

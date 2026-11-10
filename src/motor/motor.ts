@@ -114,10 +114,10 @@ class Motor {
   borrarRangos(rangos: string) { return this.pedir<InfoDoc & { cambiadas: number }>("borrarRangos", { rangos }); }
   reordenar(orden: string, invertir = false) { return this.pedir<InfoDoc>("reordenar", { orden, invertir }); }
   unir(archivos: Uint8Array[]) { return this.pedir<InfoDoc>("unir", { archivos }, archivos.map((a) => a.buffer as ArrayBuffer)); }
-  dividir(modo: string, valor: any) {
-    return this.pedir<{ partes: { paginas: number; desde: number; hasta: number; datos: Uint8Array }[] }>("dividir", { modo, valor });
+  dividir(modo: string, valor: any, clave?: string) {
+    return this.pedir<{ partes: { paginas: number; desde: number; hasta: number; datos: Uint8Array }[] }>("dividir", { modo, valor, clave });
   }
-  extraer(rangos: string) { return this.pedir<{ datos: Uint8Array; paginas: number }>("extraer", { rangos }); }
+  extraer(rangos: string, clave?: string) { return this.pedir<{ datos: Uint8Array; paginas: number }>("extraer", { rangos, clave }); }
   comprimir(nivel: string) {
     return this.pedir<InfoDoc & { antes: number; despues: number; imagenes: number; achicadas: number }>("comprimir", { nivel });
   }

@@ -140,11 +140,14 @@ export default function App() {
     if (!a) return;
     if (cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
     setOcupado(true);
-    tamanoAbierto.current = a.datos.byteLength;
-    datosAbiertos.current = a.datos.slice(0); // copia: el original se le pasa al motor
-    rutaAbierta.current = a.ruta;
+    const tamano = a.datos.byteLength;
+    const copia = a.datos.slice(0); // copia: el original se le pasa al motor
     try {
       const r = await motor.abrir(a.datos);
+      // recién ahora: si el archivo estaba roto, el PDF que ya estaba abierto sigue como estaba
+      tamanoAbierto.current = tamano;
+      datosAbiertos.current = copia;
+      rutaAbierta.current = a.ruta;
       setArchivo({ nombre: a.nombre, ruta: a.ruta });
       reiniciar();
       if ("necesitaClave" in r) {
@@ -490,7 +493,7 @@ export default function App() {
       if (await motor.censurasPendientes().catch(() => 0) > 0) { avisar(T("Primero guardá el PDF para que se aplique la censura."), "error"); return; }
       try {
         const datos = !cambios && datosAbiertos.current ? datosAbiertos.current.slice(0) : (await motor.guardar(claveOriginal.current ? { clave: claveOriginal.current } : {})).datos.slice().buffer;
-        inicial = { nombre: archivo.nombre, datos, ruta: archivo.ruta };
+        inicial = { nombre: archivo.nombre, datos, ruta: archivo.ruta, clave: claveOriginal.current || undefined };
       } catch { /* sin PDF de partida */ }
     }
     setPanel(null); setMenuPaginas(false);
@@ -500,6 +503,7 @@ export default function App() {
 
   async function crearDesdeEscaneo(imagenes: Uint8Array[], anexar: boolean, prefijo = T("Escaneo")) {
     if (!anexar && cambios && !window.confirm(T("Hay cambios sin guardar. ¿Abrir otro archivo igual?"))) return;
+    if (anexar && doc && bloqueado()) return; // antes de cerrar el escáner, así no se pierden las fotos
     setEscaner(false);
     setOcupado(true);
     try {
@@ -529,7 +533,8 @@ export default function App() {
   async function guardar(censurarYa = false) {
     if (!doc || !archivo) return;
     if (bloqueado()) { cerrarDespues.current = false; return; }
-    const pendientes = await motor.censurasPendientes();
+    const pendientes = await motor.censurasPendientes().catch(() => -1);
+    if (pendientes < 0) { cerrarDespues.current = false; avisar(T("No se pudo guardar."), "error"); return; }
     if (pendientes > 0 && !censurarYa) return setConfirmarCensura(pendientes);
     setConfirmarCensura(null);
     setOcupado(true);
@@ -544,8 +549,12 @@ export default function App() {
       // si se abrió con contraseña y no se pidió quitarla, se vuelve a guardar con la misma
       const opciones = guardado.clave || guardado.quitarClave || !claveOriginal.current ? guardado : { clave: claveOriginal.current };
       const { datos } = await motor.guardar(opciones);
+      const copia = datos.slice().buffer;
       const ok = await guardarConDialogo(datos, archivo.nombre, archivo.ruta);
       if (ok) {
+        // lo guardado pasa a ser "el PDF abierto": las herramientas rápidas parten de acá (con la censura aplicada)
+        datosAbiertos.current = copia;
+        tamanoAbierto.current = copia.byteLength;
         setCambios(false);
         avisar(T("Guardado ✓"), "ok");
         if (cerrarDespues.current) { cerrarDespues.current = false; cerrarDocumento(true); }
@@ -599,11 +608,13 @@ export default function App() {
       else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); guardar(); }
       else if (mod && e.key.toLowerCase() === "w" && doc) { e.preventDefault(); cerrarDocumento(); }
       else if (escribiendo) return;
+      // en una herramienta rápida el editor está oculto: deshacer o borrar ahí cambiaría el PDF sin que se vea
+      else if (rapida && e.key !== "Escape") return;
       else if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); deshacer(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && seleccion) { e.preventDefault(); borrarSeleccion(); }
       else if (e.key === "Escape") {
         if (menuPaginas) setMenuPaginas(false);
-        else if (rapida && !panel && !panelA11y) setRapida(null);
+        else if (rapida && !panel && !panelA11y) { if (!ocupado) setRapida(null); } // mientras trabaja, no se sale
         else if (panel || panelA11y || ajustando || confirmarCensura !== null) { setPanel(null); setPanelA11y(false); setAjustando(false); setConfirmarCensura(null); }
         else { setSeleccion(null); setHerramienta("seleccionar"); }
       }
