@@ -19,7 +19,9 @@ jobs:
         include:
           - plataforma: windows-latest
             args: ""
-          - plataforma: macos-latest
+          # Mac Intel: GitHub suele quedarse sin Mac arm64 libres y la compilación no arranca.
+          # Desde Intel se arma igual el instalador universal (Intel + Apple Silicon).
+          - plataforma: macos-15-intel
             args: "--target universal-apple-darwin"
           - plataforma: ubuntu-22.04
             args: ""
@@ -40,7 +42,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.plataforma == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ startsWith(matrix.plataforma, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: swatinem/rust-cache@v2
         with:
