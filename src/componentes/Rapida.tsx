@@ -60,7 +60,11 @@ export default function Rapida(p: {
   // opciones de cada herramienta
   const [modo, setModo] = useState<"cada" | "rangos" | "tamano">("cada");
   const [rangos, setRangos] = useState("");
-  const [mb, setMb] = useState(5);
+  const [mbOpcion, setMbOpcion] = useState<number | "otro">(5);
+  const [mbTexto, setMbTexto] = useState("");
+  const mbNum = Number(mbTexto.replace(",", "."));
+  const mbValido = Number.isFinite(mbNum) && mbNum >= 0.1 && mbNum <= 2000;
+  const mb = mbOpcion === "otro" ? (mbValido ? mbNum : 0) : mbOpcion;
   const [nivel, setNivel] = useState("equilibrada");
   const [c1, setC1] = useState(""); const [c2, setC2] = useState("");
   const [formato, setFormato] = useState("jpg");
@@ -146,6 +150,7 @@ export default function Rapida(p: {
   else if (restringido) motivo = T("“{n}” tiene restricciones de seguridad: su autor no permite modificarlo.", { n: restringido.nombre });
   else if (p.id === "quitarclave" && !pdfs[0]?.clave && !pdfs[0]?.seguridad?.cifrado) motivo = T("Este PDF no tiene contraseña.");
   else if ((p.id === "extraer" || (p.id === "dividir" && modo === "rangos")) && !rangos.trim()) motivo = T("Escribí las páginas.");
+  else if (p.id === "dividir" && modo === "tamano" && mbOpcion === "otro" && !mbValido) motivo = T("Escribí cuántos MB como máximo (por ejemplo 60).");
   else if (p.id === "clave" && !claveOk) motivo = c1 && c2 && c1 !== c2 ? T("Las contraseñas no coinciden.") : c1.includes(",") ? T("La contraseña no puede tener comas.") : T("Escribí la contraseña dos veces (al menos 4 caracteres).");
 
   // ---------- ejecutar ----------
@@ -333,7 +338,15 @@ export default function Rapida(p: {
               {modo === "cada" && total > 0 && <p className="modal__ayuda">{T("Se crean {n} archivos, uno por página.", { n: total })}</p>}
               {modo === "rangos" && <label className="campo-etiqueta">{T("Rangos separados por punto y coma")}
                 <input className="campo" value={rangos} onChange={(e) => setRangos(e.target.value)} placeholder={`1-3; 4-${Math.max(4, total)}`} /></label>}
-              {modo === "tamano" && <Opciones nombre="mb" titulo="Máximo por archivo" valor={mb} alCambiar={setMb} opciones={[1, 2, 5, 10, 20].map((v) => ({ v, t: `${v} MB` }))} />}
+              {modo === "tamano" && <Opciones<number | "otro"> nombre="mb" titulo="Máximo por archivo" valor={mbOpcion} alCambiar={setMbOpcion}
+                opciones={[...[1, 2, 5, 10, 20].map((v) => ({ v, t: `${v} MB` })), { v: "otro" as const, t: "Otro" }]} />}
+              {modo === "tamano" && mbOpcion === "otro" && (
+                <label className="campo-etiqueta">{T("Máximo en MB")}
+                  <input className="campo campo--chico" inputMode="decimal" placeholder="60" value={mbTexto} autoFocus
+                    onChange={(e) => setMbTexto(e.target.value.replace(/[^\d.,]/g, ""))} aria-invalid={!!mbTexto && !mbValido} />
+                  {!!mbTexto && !mbValido && <small className="error">{T("Poné un número entre 0,1 y 2000.")}</small>}
+                </label>
+              )}
             </>}
             {p.id === "extraer" && <label className="campo-etiqueta">{T("Páginas a extraer")}
               <input className="campo" value={rangos} onChange={(e) => setRangos(e.target.value)} placeholder="1-3, 5" /></label>}
