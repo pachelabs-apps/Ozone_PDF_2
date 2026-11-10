@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
-  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon,
+  PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon, Settings,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
 import AccesibilidadPanel from "./componentes/Accesibilidad";
@@ -112,6 +112,7 @@ export default function App() {
   const [panel, setPanel] = useState<{ inicial: IdHerramienta | null } | null>(null);
   const [a11y, setA11y] = useState<A11y>(() => { const a = leerA11y(); aplicarA11y(a, false); return a; });
   const [panelA11y, setPanelA11y] = useState(false);
+  const [ajustes, setAjustes] = useState(false); // menú del engranaje (en el celular: idioma, tema, accesibilidad)
   function cambiarA11y(a: A11y) { setA11y(a); aplicarA11y(a); }
   const [guardado, setGuardado] = useState<OpcionesGuardado>({});
   const [abiertoConClave, setAbiertoConClave] = useState(false);
@@ -613,7 +614,8 @@ export default function App() {
       else if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); deshacer(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && seleccion) { e.preventDefault(); borrarSeleccion(); }
       else if (e.key === "Escape") {
-        if (menuPaginas) setMenuPaginas(false);
+        if (ajustes) setAjustes(false);
+        else if (menuPaginas) setMenuPaginas(false);
         else if (rapida && !panel && !panelA11y) { if (!ocupado) setRapida(null); } // mientras trabaja, no se sale
         else if (panel || panelA11y || ajustando || confirmarCensura !== null) { setPanel(null); setPanelA11y(false); setAjustando(false); setConfirmarCensura(null); }
         else { setSeleccion(null); setHerramienta("seleccionar"); }
@@ -724,15 +726,19 @@ export default function App() {
           <button className="icono icono--barra" onClick={() => setPaleta(true)} title={T("Buscar herramienta") + " (Ctrl+K)"} aria-label={T("Buscar herramienta")}>
             <Search size={19} />
           </button>
-          <button className="icono icono--barra tema-btn" onClick={() => cambiarTema()}
+          <button className="icono icono--barra solo-celular" onClick={() => setAjustes((v) => !v)} aria-expanded={ajustes}
+            title={T("Ajustes")} aria-label={T("Ajustes")}>
+            <Settings size={20} />
+          </button>
+          <button className="icono icono--barra tema-btn solo-compu" onClick={() => cambiarTema()}
             title={T("Tema: {t}", { t: T(NOMBRE_TEMA[tema]) }) + " — " + T("tocá para cambiar")} aria-label={T("Tema: {t}", { t: T(NOMBRE_TEMA[tema]) })}>
             {tema === "claro" ? <Sun size={19} /> : tema === "oscuro" ? <Moon size={19} /> : <SunMoon size={19} />}
             {tema === "auto" && <span className="tema-btn__letra" aria-hidden>A</span>}
           </button>
-          <button className="icono icono--barra" onClick={() => setPanelA11y(true)} title={T("Accesibilidad") + " (Alt+A)"} aria-label={T("Accesibilidad")}>
+          <button className="icono icono--barra solo-compu" onClick={() => setPanelA11y(true)} title={T("Accesibilidad") + " (Alt+A)"} aria-label={T("Accesibilidad")}>
             <Accessibility size={20} />
           </button>
-          <label className="idioma" title={T("Idioma")}>
+          <label className="idioma solo-compu" title={T("Idioma")}>
             <Languages size={17} aria-hidden />
             <select
               value={idioma()}
@@ -753,6 +759,37 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {ajustes && (
+        <div className="ajustes__fondo" onClick={() => setAjustes(false)}>
+          <div className="ajustes" role="dialog" aria-label={T("Ajustes")} onClick={(e) => e.stopPropagation()}>
+            <label className="ajustes__fila">
+              <span><Languages size={18} aria-hidden /> {T("Idioma")}</span>
+              <select className="campo" value={idioma()}
+                onChange={(e) => { cambiarIdioma(e.target.value as Idioma); refrescarIdioma(e.target.value as Idioma); }}>
+                {IDIOMAS.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+              </select>
+            </label>
+            <div className="ajustes__fila">
+              <span>{tema === "oscuro" ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />} {T("Tema")}</span>
+              <div className="segmentos" role="radiogroup" aria-label={T("Tema")}>
+                {(["claro", "oscuro", "auto"] as Tema[]).map((x) => (
+                  <label key={x}>
+                    <input type="radio" name="tema-celular" checked={tema === x} onChange={() => cambiarTema(x)} />
+                    <span>{T(NOMBRE_TEMA[x])}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <button className="ajustes__boton" onClick={() => { setAjustes(false); setPanelA11y(true); }}>
+              <Accessibility size={18} aria-hidden /> {T("Accesibilidad")}
+            </button>
+            <button className="ajustes__boton" onClick={() => { setAjustes(false); buscarActualizaciones(); }}>
+              <RefreshCw size={18} aria-hidden /> {T("Buscar actualizaciones")} <small>v{__VERSION__}</small>
+            </button>
+          </div>
+        </div>
+      )}
 
       {doc && !rapida && (
         <div className="herramientas" role="toolbar" aria-label={T("Herramientas")}>

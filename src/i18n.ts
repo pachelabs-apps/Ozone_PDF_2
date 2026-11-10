@@ -135,6 +135,8 @@ const TEXTOS: Record<string, Fila> = {
   "1 cm": { en: "1 cm", de: "1 cm", zh: "1 厘米", ja: "1 cm", ru: "1 см" },
   "2 cm (sugerido)": { en: "2 cm (suggested)", de: "2 cm (empfohlen)", zh: "2 厘米（推荐）", ja: "2 cm（おすすめ）", ru: "2 см (рекомендуется)" },
   "Otro": { en: "Other", de: "Andere", zh: "其他", ja: "その他", ru: "Другое" },
+  "Ajustes": { en: "Settings", de: "Einstellungen", zh: "设置", ja: "設定", ru: "Настройки" },
+  "Tema": { en: "Theme", de: "Design", zh: "主题", ja: "テーマ", ru: "Тема" },
   "Listo: la imagen quedó en un PDF.": { en: "Done: the image is now a PDF.", de: "Fertig: Das Bild ist jetzt ein PDF.", zh: "完成：图片已转为 PDF。", ja: "完了：画像を PDF にしました。", ru: "Готово: изображение сохранено в PDF." },
   "Este PDF ya estaba bien comprimido: no se pudo achicar más.": { en: "This PDF was already well compressed: it couldn't be made smaller.", de: "Dieses PDF war bereits gut komprimiert: Es ließ sich nicht weiter verkleinern.", zh: "这个 PDF 已经压缩得很好，无法再变小。", ja: "この PDF はすでに十分に圧縮されていて、これ以上小さくできませんでした。", ru: "Этот PDF уже хорошо сжат: уменьшить его не удалось." },
   "Listo: se guardó 1 página en un archivo nuevo.": { en: "Done: 1 page saved to a new file.", de: "Fertig: 1 Seite in einer neuen Datei gespeichert.", zh: "完成：1 页已存为新文件。", ja: "1 ページを新しいファイルに保存しました。", ru: "Готово: 1 страница сохранена в новый файл." },

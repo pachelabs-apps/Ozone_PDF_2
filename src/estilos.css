@@ -199,8 +199,28 @@ html.tema-oscuro .boton--peligro { background: #EDEEF1; color: #111; }
 .cargando span { position: absolute; inset: 0; width: 40%; background: var(--rojo); animation: barra 1s infinite ease-in-out; }
 @keyframes barra { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 
+/* ---------- engranaje de ajustes (en el celular) ---------- */
+.solo-celular { display: none !important; }
+.ajustes__fondo { position: fixed; inset: 0; z-index: 60; }
+.ajustes {
+  position: absolute; top: calc(56px + env(safe-area-inset-top)); right: 10px; width: min(330px, calc(100vw - 20px));
+  display: grid; gap: 12px; padding: 16px; background: var(--panel); color: var(--tinta);
+  border: 1px solid var(--borde); border-radius: 16px; box-shadow: var(--sombra); animation: modal-entra .2s var(--rebote);
+}
+.ajustes__fila { display: grid; gap: 8px; font-weight: 700; font-size: .92rem; }
+.ajustes__fila > span { display: inline-flex; align-items: center; gap: 8px; }
+.ajustes__fila .campo { margin: 0; }
+.ajustes__boton {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid var(--borde);
+  border-radius: 12px; background: transparent; color: var(--tinta); font: inherit; font-weight: 700; cursor: pointer; text-align: left;
+}
+.ajustes__boton small { margin-left: auto; color: var(--tinta-suave); font-weight: 400; }
+.ajustes__boton:hover { background: var(--rojo-claro, rgba(211, 38, 29, .08)); }
+
 /* ---------- celular ---------- */
 @media (max-width: 760px) {
+  .solo-compu { display: none !important; }
+  .solo-celular { display: inline-flex !important; }
   .barra { padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
   .barra .boton span { display: none; }
   .barra .boton { padding: 9px 11px; }
