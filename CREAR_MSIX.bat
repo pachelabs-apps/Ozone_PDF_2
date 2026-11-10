@@ -60,6 +60,16 @@ if not defined SDKBIN (
 )
 echo  [2/4] Windows SDK: !SDKBIN!
 
+rem ---------- 2b. Compilar la app de esta version ----------
+rem (antes se empaquetaba el ozone-pdf.exe que hubiera en la carpeta, aunque fuera de una version vieja)
+echo  [2/4] Compilando Ozone PDF %VERSION% (puede tardar unos minutos)...
+call npm install --no-audit --no-fund >nul
+call npx tauri build --no-bundle
+if errorlevel 1 (
+  echo  No se pudo compilar la app. Revisa los mensajes de arriba.
+  goto fin_error
+)
+
 rem ---------- 3. Carpeta del paquete ----------
 echo  [3/4] Preparando los archivos...
 set "PAQ=build\msix"
