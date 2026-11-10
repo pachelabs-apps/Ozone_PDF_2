@@ -6,6 +6,8 @@ import pkg from "./package.json";
 const version = pkg.version;
 
 // en el celular (tauri android/ios dev) la app se carga por la red de tu casa: Tauri avisa la IP en TAURI_DEV_HOST
+// (se declara acá para no sumar los tipos de Node solo por esta línea)
+declare const process: { env: Record<string, string | undefined> };
 const host = process.env.TAURI_DEV_HOST;
 
 // MuPDF trae su motor en WebAssembly; se excluye del pre-empaquetado para que Vite lo copie tal cual.
