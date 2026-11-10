@@ -946,3 +946,19 @@ kbd { font: 700 .78em/1 "Atkinson", system-ui, sans-serif; padding: 2px 6px; bor
 .rapida__cafecito a:hover { text-decoration: underline; }
 .inicio__version { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 4px 6px; border-radius: 8px; color: var(--tinta-suave); font: inherit; font-size: .84rem; cursor: pointer; }
 .inicio__version:hover { color: var(--rojo); background: var(--rojo-claro); }
+
+/* fila de herramientas que se desliza (ver Carril.tsx): flechas con degradado en el borde que tiene más */
+.carril { position: relative; display: flex; min-width: 0; }
+.carril > .herramientas__lista { flex: 1; min-width: 0; }
+.carril__flecha {
+  position: absolute; top: 0; bottom: 0; width: 40px; display: grid; align-items: center; border: 0; padding: 0;
+  color: var(--tinta-suave); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 1;
+}
+.carril__flecha--der { right: 0; justify-items: end; background: linear-gradient(to left, var(--panel) 35%, transparent); }
+.carril__flecha--izq { left: 0; justify-items: start; background: linear-gradient(to right, var(--panel) 35%, transparent); }
+.carril__flecha--ver { opacity: 1; pointer-events: auto; }
+.carril__flecha svg { animation: carril-empuje 1.6s ease-in-out 3; }
+.carril__flecha--izq svg { animation-direction: reverse; }
+@keyframes carril-empuje { 50% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .carril__flecha svg { animation: none; } }
+html.a11y-sin-movimiento .carril__flecha svg { animation: none; }

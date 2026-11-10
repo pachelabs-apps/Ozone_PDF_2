@@ -14,6 +14,7 @@ import AjustarPaginas, { type OpcionesAjuste } from "./componentes/AjustarPagina
 import { motor, type Anotacion, type InfoDoc, type Rect, type Seguridad } from "./motor/motor";
 import Pagina, { type Accion, type Herramienta, type Seleccion } from "./componentes/Pagina";
 import Miniaturas from "./componentes/Miniaturas";
+import Carril from "./componentes/Carril";
 import FirmaModal, { firmaGuardada, type Firma } from "./componentes/FirmaModal";
 import { protegerOriginal, abrirEnlace, origenInstalacion, paginaActualizaciones, abrirConDialogo, archivoInicial, alLlegarArchivo, desdeArchivo, guardarConDialogo, type Abierto } from "./archivos";
 import { T, IDIOMAS, idioma, cambiarIdioma, type Idioma } from "./i18n";
@@ -867,7 +868,7 @@ export default function App() {
 
       {doc && !rapida && (
         <div className="herramientas" role="toolbar" aria-label={T("Herramientas")}>
-          <div className="herramientas__grupo herramientas__lista">
+          <Carril className="herramientas__grupo herramientas__lista">
             {HERRAMIENTAS.map((h) => {
               const I = h.icono;
               return (
@@ -927,7 +928,7 @@ export default function App() {
                 </>
               )}
             </div>
-          </div>
+          </Carril>
           <div className="herramientas__grupo herramientas__extra">
             <div className="herramientas__opciones">
             {CON_COLOR.has(herramienta) && (
