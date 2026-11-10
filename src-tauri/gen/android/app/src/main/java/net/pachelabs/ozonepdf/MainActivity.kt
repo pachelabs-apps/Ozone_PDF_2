@@ -1,26 +1,25 @@
 package net.pachelabs.ozonepdf
 
 import android.os.Bundle
-import android.webkit.JavascriptInterface
+import android.view.View
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.ScriptHandler
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import kotlin.math.roundToInt
 
 // La app ocupa toda la pantalla, también detrás de la barra de estado y de los botones del sistema.
 // El WebView de Android no le avisa a la página cuánto miden esas barras (solo el "notch"),
-// así que se lo pasamos nosotros: la página lo lee con window.OzoneBordes y lo usa en el CSS.
-// Si el usuario gira el celular y los botones quedan al costado, se corre la vista hacia adentro.
+// así que se lo pasamos nosotros en window.__ozoneBordes (en dp, que equivalen a px de CSS).
+// Se inyecta al empezar cada carga de página y además se repite unas veces por si la página
+// terminó de cargar después del primer aviso.
 class MainActivity : TauriActivity() {
-  @Volatile private var arriba = 0
-  @Volatile private var abajo = 0
   private var vista: WebView? = null
-
-  inner class Bordes {
-    @JavascriptInterface fun arriba(): Int = this@MainActivity.arriba
-    @JavascriptInterface fun abajo(): Int = this@MainActivity.abajo
-  }
+  private var guion: ScriptHandler? = null
+  private var ultimo = ""
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
@@ -29,16 +28,29 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     vista = webView
-    webView.addJavascriptInterface(Bordes(), "OzoneBordes")
-    ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
-      val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-      val d = resources.displayMetrics.density
-      arriba = (b.top / d).roundToInt()
-      abajo = (b.bottom / d).roundToInt()
-      v.setPadding(b.left, 0, b.right, 0)
-      (v as WebView).evaluateJavascript("window.dispatchEvent(new Event('ozone-bordes'))", null)
-      insets
+    val raiz = findViewById<View>(android.R.id.content)
+    ViewCompat.setOnApplyWindowInsetsListener(raiz) { v, insets ->
+      avisar(insets, false)
+      ViewCompat.onApplyWindowInsets(v, insets)
     }
-    ViewCompat.requestApplyInsets(webView)
+    ViewCompat.requestApplyInsets(raiz)
+    for (ms in longArrayOf(0, 700, 2000, 5000)) {
+      webView.postDelayed({ ViewCompat.getRootWindowInsets(webView)?.let { avisar(it, true) } }, ms)
+    }
+  }
+
+  private fun avisar(insets: WindowInsetsCompat, forzar: Boolean) {
+    val w = vista ?: return
+    val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+    val d = resources.displayMetrics.density
+    val js = "window.__ozoneBordes={arriba:${(b.top / d).roundToInt()},abajo:${(b.bottom / d).roundToInt()}};" +
+      "window.dispatchEvent(new Event('ozone-bordes'));"
+    if (js == ultimo && !forzar) return
+    if (js != ultimo && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+      guion?.remove()
+      guion = WebViewCompat.addDocumentStartJavaScript(w, js, setOf("*"))
+    }
+    ultimo = js
+    w.evaluateJavascript(js, null)
   }
 }

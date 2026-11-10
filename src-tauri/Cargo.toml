@@ -1,6 +1,6 @@
 [package]
 name = "ozone-pdf"
-version = "2.1.1"
+version = "2.1.2"
 description = "Ozone PDF: editor de PDF gratis y sin conexión"
 authors = ["Nicolás Pacheco (Pache Labs)"]
 license = "AGPL-3.0-or-later"
