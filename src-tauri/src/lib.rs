@@ -106,11 +106,10 @@ pub fn run() {
         // solo abre en el navegador de la persona los enlaces de Pache Labs y Cafecito (la app no se conecta)
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            use tauri::Manager;
             // la ventana abre a un tamaño que entra en la pantalla, para no tener que scrollear el inicio
             // en el celular la app ocupa toda la pantalla: esto es solo para la compu
             #[cfg(desktop)]
-            if let Some(w) = app.get_webview_window("main") {
+            if let Some(w) = tauri::Manager::get_webview_window(app, "main") {
                 if let Ok(Some(m)) = w.current_monitor() {
                     let esc = m.scale_factor();
                     let area = m.work_area().size;
