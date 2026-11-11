@@ -1012,3 +1012,11 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
   .inicio--tareas .inicio__pregunta { font-size: 1.3rem; line-height: 1.15; }
   .inicio--tareas .inicio__pregunta small { font-size: .85rem; }
 }
+/* celular: inicio limpio, con aire; sin la explicación chica de cada grupo */
+@media (max-width: 760px) {
+  .inicio--tareas .inicio__zona { padding: 20px 18px; row-gap: 0; }
+  .inicio--tareas .inicio__zona p { margin: 12px 0 16px; font-size: .95rem; }
+  .inicio--tareas .inicio__pregunta small { display: none; }
+  .inicio--tareas .inicio__grupo .inicio__pregunta { margin: 26px 0 12px; }
+  .inicio--tareas .tareas { gap: 12px; }
+}

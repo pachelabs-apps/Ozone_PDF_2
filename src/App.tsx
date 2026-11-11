@@ -1193,9 +1193,7 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
       <div className="inicio__zona">
         <img src="/img/intro-avatar-solo.png" alt="" width={112} height={112} className="inicio__avatar" />
         <h1>{titulo}<span>.</span></h1>
-        <p>{celular
-          ? T("Escaneá o elegí un PDF para firmar, escribir o resaltar. Para comprimir, unir o convertir, usá las herramientas de abajo.")
-          : T("Arrastralo acá o tocá “Abrir” para firmar, escribir o resaltar. Para comprimir, unir o convertir, elegí una herramienta de abajo.")}</p>
+        <p>{celular ? T("Para firmar, escribir o resaltar.") : T("Arrastralo acá o tocá “Abrir” para firmar, escribir o resaltar.")}</p>
         <div className="inicio__botones">
           {/* en el celular lo más usado es escanear: va primero y en rojo */}
           {celular && <button className="boton boton--primario boton--grande" onClick={alEscanear}>
