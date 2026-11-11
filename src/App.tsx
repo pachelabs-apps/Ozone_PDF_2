@@ -1165,11 +1165,11 @@ type Tarea = { id: string; icono: typeof Type; titulo: string };
 // ordenadas de la más usada a la menos usada
 // Atajos del inicio, agrupados como en el panel de herramientas (el resto está en "Ver todas").
 const GRUPOS_INICIO: { titulo: string; ayuda: string; tareas: Tarea[] }[] = [
-  { titulo: "Editar y firmar", ayuda: "Abrí un PDF y trabajá sobre él.", tareas: [
-    { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
-    { id: "anotar", icono: Highlighter, titulo: "Resaltar y anotar" },
-    { id: "escribir", icono: Type, titulo: "Escribir sobre el PDF" },
-    { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
+  { titulo: "Organizar y mandar", ayuda: "Uní, separá, achicá o protegé.", tareas: [
+    { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
+    { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
+    { id: "dividir", icono: Scissors, titulo: "Dividir un PDF" },
+    { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
   ] },
   { titulo: "Convertir", ayuda: "Te dan un archivo nuevo, sin tocar el original.", tareas: [
     { id: "word2pdf", icono: FileType2, titulo: "Word a PDF" },
@@ -1177,16 +1177,16 @@ const GRUPOS_INICIO: { titulo: string; ayuda: string; tareas: Tarea[] }[] = [
     { id: "img2pdf", icono: Images, titulo: "Imagen a PDF" },
     { id: "imagenes", icono: FileImage, titulo: "PDF a imágenes" },
   ] },
-  { titulo: "Organizar y mandar", ayuda: "Uní, separá, achicá o protegé.", tareas: [
-    { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
-    { id: "dividir", icono: Scissors, titulo: "Dividir un PDF" },
-    { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
-    { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
+  { titulo: "Editar y firmar", ayuda: "Abrí un PDF y trabajá sobre él.", tareas: [
+    { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
+    { id: "anotar", icono: Highlighter, titulo: "Resaltar y anotar" },
+    { id: "escribir", icono: Type, titulo: "Escribir sobre el PDF" },
+    { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
   ] },
 ];
 
 function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void; alActualizar: () => void }) {
-  const titulo = T("Abrí un PDF para empezar");
+  const titulo = T("Firmá o editá un PDF");
   const celular = window.matchMedia("(max-width: 760px)").matches;
   return (
     <section className="inicio inicio--tareas">
@@ -1194,8 +1194,8 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
         <img src="/img/intro-avatar-solo.png" alt="" width={112} height={112} className="inicio__avatar" />
         <h1>{titulo}<span>.</span></h1>
         <p>{celular
-          ? T("Tocá «Escanear» o «Elegir PDF». Tus archivos nunca salen de tu equipo.")
-          : T("Arrastralo acá o tocá “Abrir”. Tus archivos nunca salen de tu equipo.")}</p>
+          ? T("Escaneá o elegí un PDF para firmar, escribir o resaltar. Para comprimir, unir o convertir, usá las herramientas de abajo.")
+          : T("Arrastralo acá o tocá “Abrir” para firmar, escribir o resaltar. Para comprimir, unir o convertir, elegí una herramienta de abajo.")}</p>
         <div className="inicio__botones">
           {/* en el celular lo más usado es escanear: va primero y en rojo */}
           {celular && <button className="boton boton--primario boton--grande" onClick={alEscanear}>
