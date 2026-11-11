@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowUp, ArrowDown, X, FilePlus2, CheckCircle2, ShieldAlert, BadgeCheck, Lock, FileText, Copy, Download } from "lucide-react";
+import { ArrowLeft, ArrowUp, ArrowDown, X, FilePlus2, CheckCircle2, ShieldAlert, BadgeCheck, Lock, FileText, Copy, Download, Info } from "lucide-react";
 import { T, idioma } from "../i18n";
 import { IDIOMAS_OCR, ocrDeLaApp, leerTexto, capaDeTexto, alAvanzar, type IdiomaOcr } from "../ocr";
 import { prepararImagen } from "../imagenes";
@@ -15,7 +15,43 @@ import { wordAHtml, armarDocx, type Hoja } from "../word";
 type Archivo = {
   id: number; nombre: string; datos: Uint8Array; ruta?: string; tamano: number;
   paginas?: number; seguridad?: Seguridad; necesitaClave?: boolean; clave?: string; error?: string; imagen?: boolean; word?: boolean;
+  tipoError?: TipoError; // para explicar el problema al tocar la etiqueta
 };
+type TipoError = "abrir" | "word" | "imagen" | "clave";
+// Lo que se explica al tocar una etiqueta de un archivo (firma, permisos o un error).
+type Tema = "firma" | "firmaAlterada" | "permisos" | TipoError;
+const EXPLICACION: Record<Tema, { titulo: string; texto: string[] }> = {
+  firma: { titulo: "Este PDF tiene firma digital", texto: [
+    "Podés usarlo en esta herramienta, pero el archivo nuevo no va a tener una firma válida: cualquier cambio (unir, cortar, comprimir) la invalida.",
+    "El original no se modifica y sigue firmado. Para trámites que piden el documento firmado, presentá el original.",
+  ] },
+  firmaAlterada: { titulo: "La firma digital ya no es válida", texto: [
+    "El PDF tiene una firma, pero el archivo se cambió después de firmarse (por ejemplo, es una copia unida o comprimida). Aunque se vea el sello, no sirve como documento firmado.",
+    "Si necesitás el documento firmado, pedile el original a quien lo firmó.",
+  ] },
+  permisos: { titulo: "Permisos del autor", texto: [
+    "Quien hizo este PDF marcó que no se modifique. No es una contraseña para abrirlo: se puede leer igual. Es un pedido que cada programa decide si respeta.",
+    "Si tenés la contraseña de permisos (también llamada de propietario), escribila y se quitan.",
+    "Si no la tenés, tocá «Usarlo igual», siempre que tengas derecho a usarlo así: por ejemplo, es tuyo o lo necesitás para un trámite.",
+  ] },
+  abrir: { titulo: "No se pudo abrir el archivo", texto: [
+    "Puede estar dañado, incompleto (por ejemplo, una descarga que se cortó) o no ser un PDF aunque el nombre termine en .pdf.",
+    "Probá abrirlo con otro programa. Si tampoco abre, pedí el archivo de nuevo o descargalo otra vez.",
+  ] },
+  word: { titulo: "No es un documento .docx", texto: [
+    "Ozone convierte los documentos de Word nuevos (.docx, de Word 2007 en adelante). Los .doc de Word 97-2003 usan otro formato que no se puede leer.",
+    "Abrilo en Word, LibreOffice o Google Docs y guardalo como .docx («Guardar como» → Documento de Word). Después volvé a cargarlo.",
+  ] },
+  imagen: { titulo: "No es una imagen que se pueda leer", texto: [
+    "Se pueden usar fotos JPG, PNG, WebP, GIF y BMP. Las fotos HEIC del iPhone no siempre se pueden leer.",
+    "Si es una foto del iPhone, compartila como JPG (o cambiá en Ajustes → Cámara → Formatos → «Más compatible») y probá de nuevo.",
+  ] },
+  clave: { titulo: "Contraseña incorrecta", texto: [
+    "La contraseña no coincide. Revisá mayúsculas y minúsculas, y que no haya espacios de más.",
+    "Si no la sabés, pedísela a quien te mandó el archivo: sin ella no se puede abrir.",
+  ] },
+};
+
 type Resultado = { texto: string; pdf?: { nombre: string; datos: Uint8Array; ruta?: string }; leido?: string };
 
 const VARIOS = new Set<IdHerramienta>(["unir", "img2pdf", "ocrimg", "word2pdf"]);
@@ -81,17 +117,20 @@ export default function Rapida(p: {
   const [porcentaje, setPorcentaje] = useState(0);
   const listo = useRef(false);
   const [arrastrando, setArrastrando] = useState<number | null>(null); // id de la tarjeta que se está moviendo
+  // PDF con permisos del autor que el usuario decidió usar igual (ver usarIgual)
+  const [aceptados, setAceptados] = useState<Set<number>>(() => new Set());
+  const [explicando, setExplicando] = useState<{ tema: Tema; archivo: Archivo } | null>(null);
 
   // revisa cada PDF al agregarlo: páginas, contraseña, firma y restricciones
   async function revisar(a: Archivo): Promise<Archivo> {
     if (a.word) {
       // un .docx es un .zip ("PK"); los .doc viejos de Word 97-2003 no se pueden leer
       if (a.datos[0] === 0x50 && a.datos[1] === 0x4b) return a;
-      return { ...a, error: T("Solo se pueden convertir archivos .docx. Si es un .doc viejo, abrilo en Word y guardalo como .docx.") };
+      return { ...a, error: T("Solo se pueden convertir archivos .docx. Si es un .doc viejo, abrilo en Word y guardalo como .docx."), tipoError: "word" };
     }
     if (a.imagen) {
       try { (await createImageBitmap(new Blob([a.datos as BlobPart]))).close(); return a; }
-      catch { return { ...a, error: T("No es una imagen que se pueda leer (JPG, PNG…).") }; }
+      catch { return { ...a, error: T("No es una imagen que se pueda leer (JPG, PNG…)."), tipoError: "imagen" }; }
     }
     const m = motorAparte();
     try {
@@ -100,7 +139,7 @@ export default function Rapida(p: {
       if ("necesitaClave" in r) return { ...a, necesitaClave: true };
       return { ...a, paginas: r.paginas.length, seguridad: r.seguridad };
     } catch {
-      return { ...a, error: T("No se pudo abrir. Verificá que sea un PDF válido.") };
+      return { ...a, error: T("No se pudo abrir. Verificá que sea un PDF válido."), tipoError: "abrir" };
     }
   }
   async function agregar(nuevos: { nombre: string; datos: Uint8Array; ruta?: string; clave?: string }[]) {
@@ -150,8 +189,21 @@ export default function Rapida(p: {
     await m.abrir(a.datos.slice().buffer);
     const r = await m.clave(clave);
     return "incorrecta" in r
-      ? { ...a, error: T("Contraseña incorrecta.") }
-      : { ...a, necesitaClave: false, clave, error: undefined, paginas: r.paginas.length, seguridad: r.seguridad };
+      ? { ...a, error: T("Contraseña incorrecta."), tipoError: "clave" }
+      : { ...a, necesitaClave: false, clave, error: undefined, tipoError: undefined, paginas: r.paginas.length, seguridad: r.seguridad };
+  }
+  // Los permisos del autor ("no modificar") no impiden abrir ni leer el PDF: son un pedido que cada
+  // programa decide si respeta. Ozone avisa y deja seguir si la persona confirma que tiene derecho
+  // (por ejemplo, unir partes de un expediente para subirlo a un trámite).
+  function usarIgual(a: Archivo) {
+    if (!window.confirm(T("Su autor pidió que no se modifique este PDF. Seguí solo si tenés derecho a usarlo así (por ejemplo, es tuyo o lo necesitás para un trámite). ¿Usarlo igual?"))) return;
+    setAceptados((v) => new Set(v).add(a.id));
+  }
+  async function claveDePermisos(a: Archivo, clave: string) {
+    const b = await conClave(a, clave);
+    if (!b.error && b.seguridad?.restringido) { p.alAviso(T("Esa no es la contraseña de propietario."), "error"); return; }
+    if (b.error) { p.alAviso(b.error, "error"); return; }
+    setArchivos((v) => v.map((x) => (x.id !== a.id ? x : b)));
   }
   async function probarClave(a: Archivo, clave: string) {
     const b = await conClave(a, clave);
@@ -163,7 +215,8 @@ export default function Rapida(p: {
   const faltaClave = pdfs.some((a) => a.necesitaClave);
   const conError = archivos.some((a) => a.error && !a.necesitaClave);
   const permiso = SOLO_LEER[p.id];
-  const restringido = pdfs.find((a) => a.seguridad?.restringido && !(permiso && a.seguridad.permisos[permiso]));
+  const conPermisos = (a: Archivo) => !!a.seguridad?.restringido && !(permiso && a.seguridad.permisos[permiso]);
+  const restringido = pdfs.find((a) => conPermisos(a) && !aceptados.has(a.id));
   const firmados = pdfs.filter((a) => a.seguridad?.firma);
   const claveOk = c1.length >= 4 && c1 === c2 && !c1.includes(",");
   const total = pdfs[0]?.paginas || 0;
@@ -172,7 +225,7 @@ export default function Rapida(p: {
   else if (p.id === "unir" && archivos.length < 2) motivo = T("Agregá al menos otro PDF para unir.");
   else if (faltaClave) motivo = T("Escribí la contraseña del PDF para seguir.");
   else if (conError) motivo = T("Sacá de la lista los archivos con error.");
-  else if (restringido) motivo = T("“{n}” tiene restricciones de seguridad: su autor no permite modificarlo.", { n: restringido.nombre });
+  else if (restringido) motivo = T("“{n}” tiene permisos de su autor: escribí la contraseña de permisos o tocá «Usarlo igual».", { n: restringido.nombre });
   else if (p.id === "quitarclave" && !pdfs[0]?.clave && !pdfs[0]?.seguridad?.cifrado) motivo = T("Este PDF no tiene contraseña.");
   else if ((p.id === "extraer" || (p.id === "dividir" && modo === "rangos")) && !rangos.trim()) motivo = T("Escribí las páginas.");
   else if (p.id === "dividir" && modo === "tamano" && mbOpcion === "otro" && !mbValido) motivo = T("Escribí cuántos MB como máximo (por ejemplo 60).");
@@ -404,11 +457,25 @@ export default function Rapida(p: {
                       <strong title={a.nombre}>{a.imagen || a.word ? null : <FileText size={14} aria-hidden />} {a.nombre}</strong>
                       <small>
                         {tam(a.tamano)}{a.paginas ? ` · ${a.paginas === 1 ? T("1 página") : T("{n} páginas", { n: a.paginas })}` : ""}
-                        {a.seguridad?.firma === "valida" && <span className="rapida__marca"><BadgeCheck size={13} aria-hidden /> {T("Con firma digital: la copia no va a tener una firma válida")}</span>}
-                        {a.seguridad?.firma === "alterada" && <span className="rapida__marca"><ShieldAlert size={13} aria-hidden /> {T("Su firma digital ya no es válida")}</span>}
-                        {a.seguridad?.restringido && <span className="rapida__marca rapida__marca--mal"><ShieldAlert size={13} aria-hidden /> {T("Con restricciones")}</span>}
-                        {a.error && <span className="rapida__marca rapida__marca--mal">{a.error}</span>}
+                        {a.seguridad?.firma === "valida" && <Etiqueta alTocar={() => setExplicando({ tema: "firma", archivo: a })}><BadgeCheck size={13} aria-hidden /> {T("Con firma digital: la copia no va a tener una firma válida")}</Etiqueta>}
+                        {a.seguridad?.firma === "alterada" && <Etiqueta alTocar={() => setExplicando({ tema: "firmaAlterada", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Su firma digital ya no es válida")}</Etiqueta>}
+                        {conPermisos(a) && (aceptados.has(a.id)
+                          ? <Etiqueta alTocar={() => setExplicando({ tema: "permisos", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Con permisos del autor: se usa igual")}</Etiqueta>
+                          : <Etiqueta mal alTocar={() => setExplicando({ tema: "permisos", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Su autor pidió que no se modifique")}</Etiqueta>)}
+                        {a.error && (a.tipoError
+                          ? <Etiqueta mal alTocar={() => setExplicando({ tema: a.tipoError!, archivo: a })}>{a.error}</Etiqueta>
+                          : <span className="rapida__marca rapida__marca--mal">{a.error}</span>)}
                       </small>
+                      {conPermisos(a) && !aceptados.has(a.id) && (
+                        <div className="rapida__permisos">
+                          <form className="rapida__clave" onSubmit={(e) => { e.preventDefault(); claveDePermisos(a, String(new FormData(e.currentTarget).get("c") || "")); }}>
+                            <Lock size={14} aria-hidden />
+                            <input name="c" type="password" className="campo campo--chico" placeholder={T("Contraseña de permisos")} aria-label={T("Contraseña de permisos de {n}", { n: a.nombre })} />
+                            <button className="boton boton--suave boton--chico">{T("Aceptar")}</button>
+                          </form>
+                          <button type="button" className="boton boton--suave boton--chico" onClick={() => usarIgual(a)}>{T("Usarlo igual")}</button>
+                        </div>
+                      )}
                       {a.necesitaClave && (
                         <form className="rapida__clave" onSubmit={(e) => { e.preventDefault(); probarClave(a, String(new FormData(e.currentTarget).get("c") || "")); }}>
                           <Lock size={14} aria-hidden />
@@ -485,6 +552,7 @@ export default function Rapida(p: {
               <input type="checkbox" checked={abrirAlTerminar} onChange={(e) => { setAbrirAlTerminar(e.target.checked); try { localStorage.setItem(CLAVE_ABRIR, e.target.checked ? "1" : "0"); } catch { /* nada */ } }} />
               {T("Abrir el resultado al terminar")}
             </label>}
+            {motivo && <p className="rapida__motivo">{motivo}</p>}
             <button className="boton boton--primario boton--grande rapida__hacer" disabled={!!motivo || trabajando} onClick={ejecutar}>
               <I size={20} aria-hidden /> {T(h.nombre)}
             </button>
@@ -494,10 +562,39 @@ export default function Rapida(p: {
                 <span className="rapida__barra"><span style={{ width: `${porcentaje}%` }} /></span>
               </div>
             )}
-            {motivo && <p className="rapida__motivo">{motivo}</p>}
           </div>
         </div>
       )}
+      {explicando && (() => {
+        const e = EXPLICACION[explicando.tema];
+        const a = explicando.archivo;
+        const pendiente = explicando.tema === "permisos" && !aceptados.has(a.id) && archivos.some((x) => x.id === a.id);
+        return (
+          <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="titulo-explica" onPointerDown={(ev) => ev.target === ev.currentTarget && setExplicando(null)}>
+            <div className="modal__caja modal__caja--seguridad">
+              <h2 id="titulo-explica"><ShieldAlert size={22} aria-hidden /> {T(e.titulo)}</h2>
+              <p className="modal__ayuda explica__archivo">{a.nombre}</p>
+              {e.texto.map((t) => <p key={t}>{T(t)}</p>)}
+              <div className="modal__botones">
+                {pendiente && <button className="boton boton--suave" onClick={() => { setExplicando(null); usarIgual(a); }}>{T("Usarlo igual")}</button>}
+                {a.error && <button className="boton boton--suave" onClick={() => { setExplicando(null); setArchivos((v) => v.filter((x) => x.id !== a.id)); }}>{T("Sacar de la lista")}</button>}
+                <span className="espacio" />
+                <button className="boton boton--primario" autoFocus onClick={() => setExplicando(null)}>{T("Entendido")}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </section>
+  );
+}
+
+// Etiqueta de un archivo que se puede tocar para ver qué significa.
+function Etiqueta(p: { mal?: boolean; alTocar: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" className={"rapida__marca rapida__marca--tocable" + (p.mal ? " rapida__marca--mal" : "")} onClick={p.alTocar}
+      title={T("Tocá para ver qué significa")}>
+      {p.children} <Info size={13} aria-hidden className="rapida__info" />
+    </button>
   );
 }

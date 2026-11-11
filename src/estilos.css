@@ -972,3 +972,11 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
 }
 .inicio__todas { margin: 6px auto 0; }
 @media (min-width: 761px) { .inicio--tareas .tareas { grid-template-columns: repeat(4, 1fr); } }
+/* PDF con permisos del autor: contraseña de permisos o "Usarlo igual" */
+.rapida__permisos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 4px; }
+.rapida__permisos .rapida__clave { margin-top: 0; }
+/* etiquetas de los archivos que explican el problema al tocarlas */
+.rapida__marca--tocable { border: 0; background: none; padding: 2px 0; font: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.rapida__marca--tocable:hover, .rapida__marca--tocable:focus-visible { text-decoration-style: solid; }
+.rapida__info { flex: none; opacity: .8; }
+.explica__archivo { margin-top: -4px; word-break: break-all; }

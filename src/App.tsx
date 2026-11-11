@@ -1047,10 +1047,10 @@ export default function App() {
             {avisoSeguridad.restringido ? (
               <>
                 <h2 id="titulo-seg"><ShieldAlert size={22} aria-hidden /> {T("Este PDF tiene restricciones")}</h2>
-                <p>{T("Su autor no permite modificarlo. Lo podés ver, pero no anotarlo, firmarlo, unirlo ni cambiarle páginas.")}</p>
+                <p>{T("Su autor pidió que no se modifique: no se puede anotar, firmar, unir ni cambiarle páginas sin la contraseña de permisos. Si tenés derecho a usarlo así (por ejemplo, es tuyo o lo necesitás para un trámite), podés usarlo igual.")}</p>
                 <p className="modal__ayuda">{avisoSeguridad.permisos.copiar && avisoSeguridad.permisos.imprimir ? T("Sí podés copiar el texto e imprimirlo.")
                   : avisoSeguridad.permisos.copiar ? T("Sí podés copiar el texto.") : avisoSeguridad.permisos.imprimir ? T("Sí podés imprimirlo.") : ""}
-                  {" "}{T("Para quitar las restricciones hace falta la contraseña de propietario.")}</p>
+                  </p>
               </>
             ) : avisoSeguridad.firma === "valida" ? (
               <>
@@ -1067,6 +1067,11 @@ export default function App() {
             )}
             <div className="modal__botones">
               {avisoSeguridad.restringido && <button className="boton boton--suave" onClick={() => { setAvisoSeguridad(null); setPidiendoClave({ propietario: true }); }}>{T("Tengo la contraseña")}</button>}
+              {avisoSeguridad.restringido && <button className="boton boton--suave" onClick={() => {
+                if (!window.confirm(T("Su autor pidió que no se modifique este PDF. Seguí solo si tenés derecho a usarlo así (por ejemplo, es tuyo o lo necesitás para un trámite). ¿Usarlo igual?"))) return;
+                setAvisoSeguridad(null);
+                setSeguridad((s) => (s ? { ...s, restringido: false } : s));
+              }}>{T("Usarlo igual")}</button>}
               <span className="espacio" />
               <button className="boton boton--primario" autoFocus onClick={() => setAvisoSeguridad(null)}>{T("Entendido")}</button>
             </div>
