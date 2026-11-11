@@ -398,6 +398,9 @@ export default function App() {
     setHistorial((h) => [...h, { tipo: "crear", pagina: t.pagina, id: creada.id }]);
     setCambios(true);
     await recargar(t.pagina);
+    // como con la firma: el texto nuevo queda elegido, listo para moverlo (o tocarlo otra vez para corregirlo)
+    setHerramienta("seleccionar");
+    setSeleccion({ pagina: t.pagina, id: creada.id });
   }
 
   async function deshacer() {
