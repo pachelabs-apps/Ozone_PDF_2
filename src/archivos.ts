@@ -253,6 +253,27 @@ export async function abrirImagenes(): Promise<Imagen[]> {
   });
 }
 
+// Documentos de Word (.docx) para convertirlos a PDF.
+const TIPO_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export async function abrirWord(): Promise<Imagen[]> {
+  if (enApp) {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const rutas = await open({ multiple: true, filters: [{ name: "Word", extensions: ["docx"] }] });
+    if (!rutas) return [];
+    const lista = Array.isArray(rutas) ? rutas : [rutas];
+    const out: Imagen[] = [];
+    for (const r of lista) out.push({ nombre: nombreDe(r), datos: await readFile(r) });
+    return out;
+  }
+  return new Promise((resolver) => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = `.docx,${TIPO_DOCX}`; input.multiple = true;
+    input.onchange = async () => resolver(await Promise.all([...(input.files || [])].map(async (f) => ({ nombre: f.name, datos: new Uint8Array(await f.arrayBuffer()) }))));
+    input.click();
+  });
+}
+
 // "Buscar actualizaciones": la app no se conecta. Si vino de Microsoft Store, la Store la actualiza;
 // si no, abre la página de descargas en el navegador con la versión instalada y la página compara.
 export async function origenInstalacion(): Promise<"tienda" | "directo" | "navegador" | "play" | "appstore"> {

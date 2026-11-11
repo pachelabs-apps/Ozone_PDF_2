@@ -12,5 +12,7 @@ export function numerar(mupdf: any, doc: any, o: { posicion: string; formato: st
 export function limpiarDatos(doc: any): { notas: number };
 export function aImagenes(mupdf: any, doc: any, dpi: number, formato: string): { pagina: number; datos: Uint8Array }[];
 export function aTexto(doc: any): string[];
+export function aWord(mupdf: any, doc: any): import("../word").PaginaWord[];
+export function htmlAPdf(mupdf: any, partes: string[], hoja: string): { datos: Uint8Array; paginas: number };
 export function paginaParaOcr(mupdf: any, doc: any, i: number, dpi: number): { png: Uint8Array; conTexto: boolean; dpi: number };
 export function agregarCapaTexto(mupdf: any, doc: any, i: number, bytes: Uint8Array): void;

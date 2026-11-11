@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Combine, Scissors, FileOutput, Minimize2, Lock, Stamp, ListOrdered, Scaling, FileImage, FileText, Eraser, Camera, X, ArrowLeft,
-  RotateCw, Trash2, ArrowDownUp, Images, LockOpen, Search, ScanText, FileSearch,
+  RotateCw, Trash2, ArrowDownUp, Images, LockOpen, Search, ScanText, FileSearch, FileType2, FilePenLine,
 } from "lucide-react";
 import { T } from "../i18n";
 import { motor, type InfoDoc, type Seguridad } from "../motor/motor";
@@ -9,32 +9,45 @@ import { abrirVarios, guardarArchivo, guardarVarios, base } from "../archivos";
 
 export type IdHerramienta =
   | "unir" | "dividir" | "extraer" | "comprimir" | "clave" | "marca" | "numerar" | "ajustar" | "imagenes" | "texto" | "limpiar" | "escanear"
-  | "rotar" | "eliminar" | "ordenar" | "img2pdf" | "quitarclave" | "buscable" | "ocrimg";
+  | "rotar" | "eliminar" | "ordenar" | "img2pdf" | "quitarclave" | "buscable" | "ocrimg" | "word2pdf" | "pdf2word";
 
-type Item = { id: IdHerramienta; icono: typeof Lock; nombre: string; desc: string; grupo: "rapida" | "editar"; palabras?: string };
+// Categorías en las que se muestran (en este orden). Cada herramienta sigue siendo "rapida"
+// (te da un archivo nuevo y el original no se toca) o "editar" (cambia el PDF abierto; se puede deshacer).
+export type Categoria = "a_pdf" | "desde_pdf" | "ocr" | "organizar" | "ajustar" | "seguridad";
+export const CATEGORIAS: { id: Categoria; titulo: string; ayuda: string }[] = [
+  { id: "a_pdf", titulo: "Convertir a PDF", ayuda: "De Word, de fotos o del papel, a PDF." },
+  { id: "desde_pdf", titulo: "Convertir el PDF", ayuda: "Pasalo a Word, a imágenes o a texto." },
+  { id: "ocr", titulo: "Reconocer texto (OCR)", ayuda: "Para escaneos y fotos de documentos." },
+  { id: "organizar", titulo: "Organizar páginas", ayuda: "Uní, separá, girá y ordená." },
+  { id: "ajustar", titulo: "Achicar y ajustar", ayuda: "Peso, tamaño de hoja, números y sellos." },
+  { id: "seguridad", titulo: "Seguridad y privacidad", ayuda: "Contraseñas y datos ocultos." },
+];
 
-// Ordenadas de la más usada a la menos usada.
-// "rapida": te da un archivo nuevo y el original no se toca. "editar": cambia el PDF abierto (se puede deshacer).
+type Item = { id: IdHerramienta; icono: typeof Lock; nombre: string; desc: string; grupo: "rapida" | "editar"; categoria: Categoria; palabras?: string };
+
+// Dentro de cada categoría, de la más usada a la menos usada.
 export const LISTA: Item[] = [
-  { id: "unir", icono: Combine, nombre: "Unir PDF", desc: "Juntá varios PDF en uno.", grupo: "rapida", palabras: "juntar combinar merge" },
-  { id: "dividir", icono: Scissors, nombre: "Dividir", desc: "Separá en varios archivos.", grupo: "rapida", palabras: "separar cortar partir split" },
-  { id: "comprimir", icono: Minimize2, nombre: "Comprimir", desc: "Que pese menos para mandarlo.", grupo: "rapida", palabras: "achicar reducir peso liviano whatsapp mail" },
-  { id: "extraer", icono: FileOutput, nombre: "Extraer páginas", desc: "Guardá solo las páginas que elijas.", grupo: "rapida", palabras: "sacar copiar separar" },
-  { id: "escanear", icono: Camera, nombre: "Fotos a PDF", desc: "Escaneá con la cámara, como un escáner.", grupo: "rapida", palabras: "escanear escaner camara foto celular" },
-  { id: "img2pdf", icono: Images, nombre: "Imagen a PDF", desc: "Juntá fotos o escaneos (JPG, PNG) en un PDF.", grupo: "rapida", palabras: "jpg png imagenes fotos convertir" },
-  { id: "clave", icono: Lock, nombre: "Proteger con contraseña", desc: "Guardá una copia con contraseña.", grupo: "rapida", palabras: "proteger contrasena candado seguridad password cifrar" },
-  { id: "quitarclave", icono: LockOpen, nombre: "Quitar contraseña", desc: "Una copia sin contraseña, si la sabés.", grupo: "rapida", palabras: "desproteger sacar contrasena password descifrar" },
-  { id: "imagenes", icono: FileImage, nombre: "PDF a imágenes", desc: "Cada página como JPG o PNG.", grupo: "rapida", palabras: "jpg png foto convertir" },
-  { id: "texto", icono: FileText, nombre: "PDF a texto", desc: "Copiá todo el texto a un .txt.", grupo: "rapida", palabras: "txt copiar extraer texto" },
-  { id: "buscable", icono: FileSearch, nombre: "Hacer buscable un PDF", desc: "Que un PDF escaneado se pueda buscar y copiar (OCR).", grupo: "rapida", palabras: "ocr escaneado reconocer texto buscar copiar seleccionar leer" },
-  { id: "ocrimg", icono: ScanText, nombre: "Imagen a texto", desc: "Leé el texto de fotos o escaneos (OCR).", grupo: "rapida", palabras: "ocr reconocer leer texto foto escaneo copiar transcribir" },
-  { id: "limpiar", icono: Eraser, nombre: "Limpiar datos ocultos", desc: "Borrá autor, programa y otros datos.", grupo: "rapida", palabras: "privacidad metadatos autor adjuntos" },
-  { id: "rotar", icono: RotateCw, nombre: "Rotar páginas", desc: "Girá todas o solo algunas.", grupo: "editar", palabras: "girar dar vuelta orientacion" },
-  { id: "eliminar", icono: Trash2, nombre: "Eliminar páginas", desc: "Quitá las páginas que no querés.", grupo: "editar", palabras: "borrar sacar quitar" },
-  { id: "ordenar", icono: ArrowDownUp, nombre: "Ordenar páginas", desc: "Cambiá el orden o invertilo.", grupo: "editar", palabras: "reordenar mover invertir orden" },
-  { id: "ajustar", icono: Scaling, nombre: "Ajustar páginas", desc: "A4 o Carta, márgenes o todas verticales.", grupo: "editar", palabras: "a4 tamano margenes carta vertical" },
-  { id: "numerar", icono: ListOrdered, nombre: "Numerar páginas", desc: "Agregá el número de página.", grupo: "editar", palabras: "numero paginar" },
-  { id: "marca", icono: Stamp, nombre: "Marca de agua", desc: "Un texto de fondo en cada página.", grupo: "editar", palabras: "sello borrador confidencial" },
+  { id: "word2pdf", icono: FileType2, nombre: "Word a PDF", desc: "Pasá un documento de Word (.docx) a PDF.", grupo: "rapida", categoria: "a_pdf", palabras: "word docx doc convertir documento office" },
+  { id: "img2pdf", icono: Images, nombre: "Imagen a PDF", desc: "Juntá fotos o escaneos (JPG, PNG) en un PDF.", grupo: "rapida", categoria: "a_pdf", palabras: "jpg png imagenes fotos convertir" },
+  { id: "escanear", icono: Camera, nombre: "Fotos a PDF", desc: "Escaneá con la cámara, como un escáner.", grupo: "rapida", categoria: "a_pdf", palabras: "escanear escaner camara foto celular" },
+  { id: "pdf2word", icono: FilePenLine, nombre: "PDF a Word", desc: "Pasalo a un .docx para editarlo en Word.", grupo: "rapida", categoria: "desde_pdf", palabras: "word docx doc convertir editar office" },
+  { id: "imagenes", icono: FileImage, nombre: "PDF a imágenes", desc: "Cada página como JPG o PNG.", grupo: "rapida", categoria: "desde_pdf", palabras: "jpg png foto convertir" },
+  { id: "texto", icono: FileText, nombre: "PDF a texto", desc: "Copiá todo el texto a un .txt.", grupo: "rapida", categoria: "desde_pdf", palabras: "txt copiar extraer texto" },
+  { id: "buscable", icono: FileSearch, nombre: "Hacer buscable un PDF", desc: "Que un PDF escaneado se pueda buscar y copiar (OCR).", grupo: "rapida", categoria: "ocr", palabras: "ocr escaneado reconocer texto buscar copiar seleccionar leer" },
+  { id: "ocrimg", icono: ScanText, nombre: "Imagen a texto", desc: "Leé el texto de fotos o escaneos (OCR).", grupo: "rapida", categoria: "ocr", palabras: "ocr reconocer leer texto foto escaneo copiar transcribir" },
+  { id: "unir", icono: Combine, nombre: "Unir PDF", desc: "Juntá varios PDF en uno.", grupo: "rapida", categoria: "organizar", palabras: "juntar combinar merge" },
+  { id: "dividir", icono: Scissors, nombre: "Dividir", desc: "Separá en varios archivos.", grupo: "rapida", categoria: "organizar", palabras: "separar cortar partir split" },
+  { id: "extraer", icono: FileOutput, nombre: "Extraer páginas", desc: "Guardá solo las páginas que elijas.", grupo: "rapida", categoria: "organizar", palabras: "sacar copiar separar" },
+  { id: "rotar", icono: RotateCw, nombre: "Rotar páginas", desc: "Girá todas o solo algunas.", grupo: "editar", categoria: "organizar", palabras: "girar dar vuelta orientacion" },
+  { id: "eliminar", icono: Trash2, nombre: "Eliminar páginas", desc: "Quitá las páginas que no querés.", grupo: "editar", categoria: "organizar", palabras: "borrar sacar quitar" },
+  { id: "ordenar", icono: ArrowDownUp, nombre: "Ordenar páginas", desc: "Cambiá el orden o invertilo.", grupo: "editar", categoria: "organizar", palabras: "reordenar mover invertir orden" },
+  { id: "comprimir", icono: Minimize2, nombre: "Comprimir", desc: "Que pese menos para mandarlo.", grupo: "rapida", categoria: "ajustar", palabras: "achicar reducir peso liviano whatsapp mail" },
+  { id: "ajustar", icono: Scaling, nombre: "Ajustar páginas", desc: "A4 o Carta, márgenes o todas verticales.", grupo: "editar", categoria: "ajustar", palabras: "a4 tamano margenes carta vertical" },
+  { id: "numerar", icono: ListOrdered, nombre: "Numerar páginas", desc: "Agregá el número de página.", grupo: "editar", categoria: "ajustar", palabras: "numero paginar" },
+  { id: "marca", icono: Stamp, nombre: "Marca de agua", desc: "Un texto de fondo en cada página.", grupo: "editar", categoria: "ajustar", palabras: "sello borrador confidencial" },
+  { id: "clave", icono: Lock, nombre: "Proteger con contraseña", desc: "Guardá una copia con contraseña.", grupo: "rapida", categoria: "seguridad", palabras: "proteger contrasena candado seguridad password cifrar" },
+  { id: "quitarclave", icono: LockOpen, nombre: "Quitar contraseña", desc: "Una copia sin contraseña, si la sabés.", grupo: "rapida", categoria: "seguridad", palabras: "desproteger sacar contrasena password descifrar" },
+  { id: "limpiar", icono: Eraser, nombre: "Limpiar datos ocultos", desc: "Borrá autor, programa y otros datos.", grupo: "rapida", categoria: "seguridad", palabras: "privacidad metadatos autor adjuntos" },
 ];
 
 export type OpcionesGuardado = { clave?: string; quitarClave?: boolean };
@@ -142,25 +155,27 @@ export default function Herramientas(p: Props) {
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={T("Buscar herramienta")} aria-label={T("Buscar herramienta")}
             onKeyDown={(e) => {
               if (e.key === "Escape" && q) { e.stopPropagation(); setQ(""); }
-              if (e.key === "Enter") { const h = filtradas[0]; if (h && !(h.grupo === "editar" && !p.doc)) elegir(h.id); }
+              if (e.key === "Enter") { const h = filtradas[0]; if (h) elegir(h.id); }
             }} />
         </label>
         {!filtradas.length && <p className="paleta__vacio">{T("No encontré nada con eso. Probá con otra palabra.")}</p>}
-        {(["rapida", "editar"] as const).filter((g) => filtradas.some((h) => h.grupo === g)).map((g) => (
-          <section key={g} className="grupo-herr" aria-labelledby={`grupo-${g}`}>
-            <h3 id={`grupo-${g}`} className="grupo-herr__titulo">{T(g === "rapida" ? "Herramientas rápidas" : "Editar el PDF abierto")}</h3>
-            <p className="grupo-herr__ayuda">{T(g === "rapida"
-              ? "Te dan un archivo nuevo. Tu archivo original no se toca."
-              : p.doc ? "Cambian el PDF que estás viendo. Se puede deshacer con Ctrl+Z y después tocás Guardar." : "Abrí un PDF para usarlas.")}</p>
+        {filtradas.length > 0 && <p className="grupo-herr__leyenda">{T(p.doc
+          ? "Casi todas te dan un archivo nuevo y no tocan el original. Las que dicen «En el PDF abierto» cambian el que estás viendo (se puede deshacer)."
+          : "Casi todas te dan un archivo nuevo y no tocan el original. Las que dicen «En el PDF abierto» te piden abrir uno primero.")}</p>}
+        {CATEGORIAS.filter((c) => filtradas.some((h) => h.categoria === c.id)).map((c) => (
+          <section key={c.id} className="grupo-herr" aria-labelledby={`grupo-${c.id}`}>
+            <h3 id={`grupo-${c.id}`} className="grupo-herr__titulo">{T(c.titulo)}</h3>
+            <p className="grupo-herr__ayuda">{T(c.ayuda)}</p>
             <ul className="tarjetas">
-              {filtradas.filter((h) => h.grupo === g).map((h, i) => {
+              {filtradas.filter((h) => h.categoria === c.id).map((h, i) => {
                 const I = h.icono;
                 return (
                   <li key={h.id} style={{ animationDelay: `${i * 25}ms` }}>
-                    <button className="tarjeta" disabled={g === "editar" && !p.doc} onClick={() => elegir(h.id)}>
+                    <button className={"tarjeta" + (h.grupo === "editar" ? " tarjeta--editar" : "")} onClick={() => elegir(h.id)}>
                       <span className="tarjeta__icono"><I size={22} aria-hidden /></span>
                       <strong>{T(h.nombre)}</strong>
                       <small>{T(h.desc)}</small>
+                      {h.grupo === "editar" && <em className="tarjeta__etiqueta">{T("En el PDF abierto")}</em>}
                     </button>
                   </li>
                 );

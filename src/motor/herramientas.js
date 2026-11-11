@@ -391,3 +391,94 @@ export function agregarCapaTexto(mupdf, doc, i, bytes) {
     fuente.destroy();
   }
 }
+
+// ---------- PDF → Word: texto con formato e imágenes de cada página ----------
+// Devuelve lo que necesita armarDocx (src/word.ts): bloques de texto con líneas y corridas
+// (negrita, cursiva, tamaño, color, fuente) e imágenes en PNG, con su posición en la página.
+const NOMBRES_FUENTE = [
+  [/helvetica|arial|nimbussans|liberationsans/i, "Arial"],
+  [/times|nimbusroman|liberationserif/i, "Times New Roman"],
+  [/courier|nimbusmono|liberationmono/i, "Courier New"],
+];
+function fuenteWord(nombre) {
+  let n = String(nombre || "").replace(/^[A-Z]{6}\+/, "");
+  for (const [re, w] of NOMBRES_FUENTE) if (re.test(n)) return w;
+  n = n.replace(/[-,](Bold|Italic|Oblique|BoldItalic|BoldOblique|Regular|Roman|Book|Medium|Semibold|SemiBold|Light|Black|Heavy|MT|PS).*$/i, "")
+       .replace(/(PSMT|MT|PS)$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+  return n || "Calibri";
+}
+const hex2 = (v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, "0");
+function colorHex(c) {
+  if (!c || !c.length) return "000000";
+  if (c.length === 1) return hex2(c[0]).repeat(3);
+  if (c.length === 4) { const k = c[3]; return [c[0], c[1], c[2]].map((x) => hex2((1 - x) * (1 - k))).join(""); }
+  return hex2(c[0]) + hex2(c[1]) + hex2(c[2]);
+}
+
+export function aWord(mupdf, doc) {
+  const paginas = [];
+  for (let i = 0; i < doc.countPages(); i++) {
+    const pg = doc.loadPage(i);
+    const b = pg.getBounds();
+    const st = pg.toStructuredText("preserve-images,preserve-whitespace");
+    const bloques = [];
+    let bloque = null, linea = null;
+    st.walk({
+      onImageBlock(bbox, _m, imagen) {
+        const w = bbox[2] - bbox[0], h = bbox[3] - bbox[1];
+        if (w < 4 || h < 4) return;
+        try {
+          let px = imagen.toPixmap();
+          const cs = px.getColorSpace();
+          if (cs && !cs.isRGB() && !cs.isGray()) { const r = px.convertToColorSpace(mupdf.ColorSpace.DeviceRGB); px.destroy(); px = r; }
+          bloques.push({ tipo: "i", x0: bbox[0] - b[0], y0: bbox[1] - b[1], x1: bbox[2] - b[0], y1: bbox[3] - b[1], png: px.asPNG(), w: px.getWidth(), h: px.getHeight() });
+          px.destroy();
+        } catch { /* imagen que no se puede convertir: se saltea */ }
+      },
+      beginTextBlock(bbox) { bloque = { tipo: "t", x0: bbox[0] - b[0], y0: bbox[1] - b[1], x1: bbox[2] - b[0], y1: bbox[3] - b[1], lineas: [] }; },
+      beginLine(bbox) { linea = { x0: bbox[0] - b[0], y0: bbox[1] - b[1], x1: bbox[2] - b[0], y1: bbox[3] - b[1], corridas: [] }; },
+      onChar(c, _o, font, size, q, color) {
+        if (!linea) return;
+        const qx0 = Math.min(q[0], q[4]) - b[0], qx1 = Math.max(q[2], q[6]) - b[0];
+        const nombre = font.getName();
+        const negrita = font.isBold() || /bold|black|heavy|semibold|demi/i.test(nombre);
+        const cursiva = font.isItalic() || /italic|oblique/i.test(nombre);
+        const tam = Math.round(size * 2) / 2, col = colorHex(color), fuente = fuenteWord(nombre);
+        const u = linea.corridas[linea.corridas.length - 1];
+        // un hueco grande dentro del renglón corta la corrida: ahí suele ir texto de otro bloque
+        const hueco = u && qx0 - u.x1 > size * 0.9;
+        if (u && !hueco && u.b === negrita && u.i === cursiva && u.tam === tam && u.color === col && u.fuente === fuente) { u.t += c; u.x1 = Math.max(u.x1, qx1); }
+        else linea.corridas.push({ t: c, b: negrita, i: cursiva, tam, color: col, fuente, x0: qx0, x1: qx1 });
+      },
+      endLine() { if (linea && bloque && linea.corridas.some((x) => x.t.trim())) bloque.lineas.push(linea); linea = null; },
+      endTextBlock() { if (bloque && bloque.lineas.length) bloques.push(bloque); bloque = null; },
+    });
+    st.destroy();
+    paginas.push({ w: b[2] - b[0], h: b[3] - b[1], bloques });
+  }
+  return paginas;
+}
+
+// ---------- Word → PDF: arma las páginas a partir del HTML (una parte por cada salto de página) ----------
+export function htmlAPdf(mupdf, partes, hoja) {
+  const [W, Hh] = hoja === "carta" ? [612, 792] : [595.28, 841.89];
+  const buf = new mupdf.Buffer();
+  const w = new mupdf.DocumentWriter(buf, "pdf", "");
+  let total = 0;
+  for (const html of partes) {
+    const d = mupdf.Document.openDocument(new TextEncoder().encode(html), "text/html");
+    d.layout(W, Hh, 11);
+    for (let i = 0; i < d.countPages(); i++) {
+      const pg = d.loadPage(i);
+      const dev = w.beginPage([0, 0, W, Hh]);
+      pg.run(dev, mupdf.Matrix.identity);
+      w.endPage();
+      total++;
+    }
+    d.destroy();
+  }
+  w.close();
+  const datos = buf.asUint8Array().slice();
+  buf.destroy();
+  return { datos, paginas: total };
+}

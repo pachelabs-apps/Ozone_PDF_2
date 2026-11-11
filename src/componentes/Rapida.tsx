@@ -5,7 +5,8 @@ import { IDIOMAS_OCR, ocrDeLaApp, leerTexto, capaDeTexto, alAvanzar, type Idioma
 import { prepararImagen } from "../imagenes";
 import { motorAparte, type Seguridad } from "../motor/motor";
 import { LISTA, type IdHerramienta } from "./Herramientas";
-import { abrirEnlace, abrirVarios, abrirConDialogo, abrirImagenes, guardarArchivo, guardarVarios, base, type Abierto } from "../archivos";
+import { abrirEnlace, abrirVarios, abrirConDialogo, abrirImagenes, abrirWord, guardarArchivo, guardarVarios, base, type Abierto } from "../archivos";
+import { wordAHtml, armarDocx, type Hoja } from "../word";
 
 // Herramientas rápidas, como en Ozone PDF clásico: una pantalla propia donde se eligen o se sueltan
 // los archivos, se ven en una lista, se eligen las opciones y se genera un archivo nuevo.
@@ -13,12 +14,12 @@ import { abrirEnlace, abrirVarios, abrirConDialogo, abrirImagenes, guardarArchiv
 
 type Archivo = {
   id: number; nombre: string; datos: Uint8Array; ruta?: string; tamano: number;
-  paginas?: number; seguridad?: Seguridad; necesitaClave?: boolean; clave?: string; error?: string; imagen?: boolean;
+  paginas?: number; seguridad?: Seguridad; necesitaClave?: boolean; clave?: string; error?: string; imagen?: boolean; word?: boolean;
 };
 type Resultado = { texto: string; pdf?: { nombre: string; datos: Uint8Array; ruta?: string }; leido?: string };
 
-const VARIOS = new Set<IdHerramienta>(["unir", "img2pdf", "ocrimg"]);
-const SOLO_LEER: Partial<Record<IdHerramienta, "copiar" | "imprimir">> = { texto: "copiar", imagenes: "imprimir" };
+const VARIOS = new Set<IdHerramienta>(["unir", "img2pdf", "ocrimg", "word2pdf"]);
+const SOLO_LEER: Partial<Record<IdHerramienta, "copiar" | "imprimir">> = { texto: "copiar", imagenes: "imprimir", pdf2word: "copiar" };
 const CLAVE_ABRIR = "ozone.abrirAlTerminar";
 
 function tam(b: number) {
@@ -55,6 +56,8 @@ export default function Rapida(p: {
   const h = LISTA.find((x) => x.id === p.id)!;
   const varios = VARIOS.has(p.id);
   const esImagen = p.id === "img2pdf" || p.id === "ocrimg";
+  const esWord = p.id === "word2pdf";
+  const noPdf = esImagen || esWord; // herramientas que reciben otra cosa que un PDF
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [soltando, setSoltando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -71,6 +74,7 @@ export default function Rapida(p: {
   const [c1, setC1] = useState(""); const [c2, setC2] = useState("");
   const [formato, setFormato] = useState("jpg");
   const [dpi, setDpi] = useState(150);
+  const [hoja, setHoja] = useState<Hoja>(() => (idioma() === "en" ? "carta" : "a4"));
   const [idiomaOcr, setIdiomaOcr] = useState<IdiomaOcr>(() => ocrDeLaApp(idioma()));
   const [trabajando, setTrabajando] = useState(false);
   const [progreso, setProgreso] = useState("");
@@ -80,6 +84,11 @@ export default function Rapida(p: {
 
   // revisa cada PDF al agregarlo: páginas, contraseña, firma y restricciones
   async function revisar(a: Archivo): Promise<Archivo> {
+    if (a.word) {
+      // un .docx es un .zip ("PK"); los .doc viejos de Word 97-2003 no se pueden leer
+      if (a.datos[0] === 0x50 && a.datos[1] === 0x4b) return a;
+      return { ...a, error: T("Solo se pueden convertir archivos .docx. Si es un .doc viejo, abrilo en Word y guardalo como .docx.") };
+    }
     if (a.imagen) {
       try { (await createImageBitmap(new Blob([a.datos as BlobPart]))).close(); return a; }
       catch { return { ...a, error: T("No es una imagen que se pueda leer (JPG, PNG…).") }; }
@@ -100,7 +109,7 @@ export default function Rapida(p: {
     try {
       const lista: Archivo[] = [];
       for (const n of nuevos) {
-        let a = await revisar({ id: siguiente++, nombre: n.nombre, datos: n.datos, ruta: n.ruta, tamano: n.datos.byteLength, imagen: esImagen });
+        let a = await revisar({ id: siguiente++, nombre: n.nombre, datos: n.datos, ruta: n.ruta, tamano: n.datos.byteLength, imagen: esImagen, word: esWord });
         // viene del editor con la contraseña ya escrita: no se la vuelve a pedir
         if (n.clave && (a.necesitaClave || a.seguridad?.restringido)) a = await conClave(a, n.clave);
         lista.push(a);
@@ -114,12 +123,13 @@ export default function Rapida(p: {
   useEffect(() => {
     if (listo.current) return;
     listo.current = true;
-    if (p.inicial && !esImagen) agregar([aBytes(p.inicial)]);
+    if (p.inicial && !noPdf) agregar([aBytes(p.inicial)]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function elegir() {
     if (esImagen) return agregar(await abrirImagenes());
+    if (esWord) return agregar(await abrirWord());
     if (varios) return agregar((await abrirVarios()).map(aBytes));
     const a = await abrirConDialogo();
     if (a) agregar([aBytes(a)]);
@@ -127,8 +137,8 @@ export default function Rapida(p: {
   async function soltar(e: React.DragEvent) {
     e.preventDefault(); setSoltando(false);
     if (arrastrando !== null) { setArrastrando(null); return; } // era una tarjeta de la lista, no un archivo
-    const fs = [...e.dataTransfer.files].filter((f) => esImagen ? f.type.startsWith("image/") : (/\.pdf$/i.test(f.name) || f.type === "application/pdf"));
-    if (!fs.length) return p.alAviso(T(esImagen ? "Soltá imágenes JPG o PNG." : "Soltá archivos PDF."), "error");
+    const fs = [...e.dataTransfer.files].filter((f) => esImagen ? f.type.startsWith("image/") : esWord ? /\.docx?$/i.test(f.name) : (/\.pdf$/i.test(f.name) || f.type === "application/pdf"));
+    if (!fs.length) return p.alAviso(T(esImagen ? "Soltá imágenes JPG o PNG." : esWord ? "Soltá documentos de Word (.docx)." : "Soltá archivos PDF."), "error");
     agregar(await Promise.all(fs.map(async (f) => ({ nombre: f.name, datos: new Uint8Array(await f.arrayBuffer()) }))));
   }
   function mover(i: number, d: number) {
@@ -149,7 +159,7 @@ export default function Rapida(p: {
   }
 
   // ---------- lo que impide ejecutar ----------
-  const pdfs = archivos.filter((a) => !a.imagen);
+  const pdfs = archivos.filter((a) => !a.imagen && !a.word);
   const faltaClave = pdfs.some((a) => a.necesitaClave);
   const conError = archivos.some((a) => a.error && !a.necesitaClave);
   const permiso = SOLO_LEER[p.id];
@@ -158,7 +168,7 @@ export default function Rapida(p: {
   const claveOk = c1.length >= 4 && c1 === c2 && !c1.includes(",");
   const total = pdfs[0]?.paginas || 0;
   let motivo = "";
-  if (!archivos.length) motivo = T(esImagen ? "Elegí o soltá las imágenes." : varios ? "Elegí o soltá al menos dos PDF." : "Elegí o soltá un PDF.");
+  if (!archivos.length) motivo = T(esImagen ? "Elegí o soltá las imágenes." : esWord ? "Elegí o soltá un documento de Word." : varios ? "Elegí o soltá al menos dos PDF." : "Elegí o soltá un PDF.");
   else if (p.id === "unir" && archivos.length < 2) motivo = T("Agregá al menos otro PDF para unir.");
   else if (faltaClave) motivo = T("Escribí la contraseña del PDF para seguir.");
   else if (conError) motivo = T("Sacá de la lista los archivos con error.");
@@ -212,6 +222,20 @@ export default function Rapida(p: {
         }
         const leido = textos.join("\n\n").trim();
         r = { texto: leido ? T("Listo: este es el texto que encontré.") : T("No encontré texto en las imágenes."), leido };
+      } else if (p.id === "word2pdf") {
+        const hechos: { nombre: string; datos: Uint8Array }[] = [];
+        for (let k = 0; k < archivos.length; k++) {
+          const x = archivos[k];
+          setProgreso(archivos.length > 1 ? T("Convirtiendo {n} de {total}…", { n: k + 1, total: archivos.length }) : T("Convirtiendo…"));
+          await m.cerrar();
+          await m.desdeHtml(await wordAHtml(x.datos), hoja);
+          const { datos } = await m.guardar();
+          hechos.push({ nombre: `${base(x.nombre).replace(/\.docx?$/i, "")}.pdf`, datos });
+        }
+        if (hechos.length === 1) {
+          const ruta = await guardarArchivo(hechos[0].datos, hechos[0].nombre, archivos[0].ruta);
+          r = ruta ? { texto: T("Listo: el documento quedó en PDF."), pdf: { nombre: hechos[0].nombre, datos: hechos[0].datos, ruta: typeof ruta === "string" && /[\\/]/.test(ruta) ? ruta : undefined } } : null;
+        } else if (await guardarVarios(hechos)) r = { texto: T("Listo: {n} documentos quedaron en PDF.", { n: hechos.length }) };
       } else if (p.id === "img2pdf") {
         await m.cerrar();
         const listas: Uint8Array[] = [];
@@ -271,6 +295,12 @@ export default function Rapida(p: {
             const { datos } = await m.guardar(a.clave ? { clave: a.clave } : {});
             r = await unPdf(datos, "buscable", hechas === 1 ? T("Listo: ahora se puede buscar y copiar el texto.") : T("Listo: ahora se puede buscar y copiar el texto de {n} páginas.", { n: hechas }));
           }
+        } else if (p.id === "pdf2word") {
+          setProgreso(T("Convirtiendo…"));
+          const paginas = await m.aWord();
+          const hayTexto = paginas.some((x) => x.bloques.some((y) => y.tipo === "t"));
+          if (!hayTexto) r = { texto: T("Este PDF no tiene texto (parece escaneado). Primero usá «Hacer buscable un PDF» y después convertilo a Word.") };
+          else if (await guardarArchivo(armarDocx(paginas), `${b}.docx`, junto)) r = { texto: T("Listo: se guardó el documento de Word.") };
         } else if (p.id === "texto") {
           const partes = await m.aTexto();
           const texto = partes.map((t, i) => `— ${T("Página {n} de {total}", { n: i + 1, total: partes.length })} —\n\n${t}`).join("\n\n");
@@ -349,8 +379,8 @@ export default function Rapida(p: {
           <div className="rapida__archivos">
             <button className="rapida__zona" onClick={elegir}>
               <FilePlus2 size={26} aria-hidden />
-              <strong>{T(esImagen ? "Elegí o soltá imágenes acá" : varios ? "Elegí o soltá los PDF acá" : archivos.length ? "Cambiar el PDF" : "Elegí o soltá un PDF acá")}</strong>
-              <small>{T(varios ? "Podés agregar varios y ordenarlos arrastrando." : "El original no se modifica.")}</small>
+              <strong>{T(esImagen ? "Elegí o soltá imágenes acá" : esWord ? "Elegí o soltá documentos de Word acá" : varios ? "Elegí o soltá los PDF acá" : archivos.length ? "Cambiar el PDF" : "Elegí o soltá un PDF acá")}</strong>
+              <small>{T(esWord ? "Podés agregar varios: cada uno queda en su propio PDF." : varios ? "Podés agregar varios y ordenarlos arrastrando." : "El original no se modifica.")}</small>
             </button>
             {archivos.length > 0 && (
               <ol className="rapida__lista">
@@ -371,7 +401,7 @@ export default function Rapida(p: {
                     }}>
                     <span className="rapida__num">{i + 1}</span>
                     <span className="rapida__nombre">
-                      <strong title={a.nombre}>{a.imagen ? null : <FileText size={14} aria-hidden />} {a.nombre}</strong>
+                      <strong title={a.nombre}>{a.imagen || a.word ? null : <FileText size={14} aria-hidden />} {a.nombre}</strong>
                       <small>
                         {tam(a.tamano)}{a.paginas ? ` · ${a.paginas === 1 ? T("1 página") : T("{n} páginas", { n: a.paginas })}` : ""}
                         {a.seguridad?.firma === "valida" && <span className="rapida__marca"><BadgeCheck size={13} aria-hidden /> {T("Con firma digital: la copia no va a tener una firma válida")}</span>}
@@ -387,7 +417,7 @@ export default function Rapida(p: {
                         </form>
                       )}
                     </span>
-                    {varios && <>
+                    {varios && !esWord && <>
                       <button className="icono" onClick={() => mover(i, -1)} disabled={i === 0} aria-label={T("Subir")} title={T("Subir")}><ArrowUp size={16} /></button>
                       <button className="icono" onClick={() => mover(i, 1)} disabled={i === archivos.length - 1} aria-label={T("Bajar")} title={T("Bajar")}><ArrowDown size={16} /></button>
                     </>}
@@ -444,9 +474,14 @@ export default function Rapida(p: {
             </>}
             {p.id === "limpiar" && <p className="modal__ayuda">{T("Se borra lo que el PDF guarda sin que se vea: autor, programa, fechas, adjuntos y nombres en las notas.")}</p>}
             {p.id === "unir" && <p className="modal__ayuda">{T("Se unen en el orden de la lista. Arrastrá las tarjetas o usá las flechas para cambiarlo.")}</p>}
+            {p.id === "word2pdf" && <>
+              <Opciones nombre="hoja" titulo="Tamaño de hoja" valor={hoja} alCambiar={setHoja} opciones={[{ v: "a4", t: "A4" }, { v: "carta", t: "Carta" }]} />
+              <p className="modal__ayuda">{T("Se mantienen los títulos, negritas, listas, tablas e imágenes. Los diseños muy armados (columnas, cuadros de texto, encabezados) pueden quedar más simples.")}</p>
+            </>}
+            {p.id === "pdf2word" && <p className="modal__ayuda">{T("Se pasa el texto con sus tamaños, negritas, cursivas e imágenes, listo para editar en Word. Los diseños muy armados (columnas o tablas) pueden quedar más simples. Si el PDF es escaneado, primero usá «Hacer buscable un PDF».")}</p>}
             {p.id === "img2pdf" && <p className="modal__ayuda">{T("Cada imagen queda en una página A4, centrada, en el orden de la lista.")}</p>}
 
-            {p.id !== "ocrimg" && <label className="rapida__abrir">
+            {p.id !== "ocrimg" && p.id !== "pdf2word" && <label className="rapida__abrir">
               <input type="checkbox" checked={abrirAlTerminar} onChange={(e) => { setAbrirAlTerminar(e.target.checked); try { localStorage.setItem(CLAVE_ABRIR, e.target.checked ? "1" : "0"); } catch { /* nada */ } }} />
               {T("Abrir el resultado al terminar")}
             </label>}

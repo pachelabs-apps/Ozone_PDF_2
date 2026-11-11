@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
-  FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square,
+  FolderOpen, Save, Undo2, MousePointer2, Highlighter, Underline, Strikethrough, Type, Square, FileType2, FilePenLine, Images, FileImage,
   PenLine, Signature, EyeOff, Trash2, ZoomIn, ZoomOut, MoveHorizontal, ShieldCheck, Languages, Camera, Scaling, LayoutGrid, Lock, Accessibility, Search, Minimize2, Combine, Scissors, X, House, BadgeCheck, ShieldAlert, Files, ChevronDown, Stamp, ListOrdered, Coffee, RefreshCw, Sun, Moon, SunMoon, Settings, RotateCw, ArrowDownUp,
 } from "lucide-react";
 import Paleta, { type Comando } from "./componentes/Paleta";
@@ -439,6 +439,8 @@ export default function App() {
     switch (id) {
       case "firmar": return conDocumento(() => elegirHerramienta("firma"));
       case "anotar": return conDocumento(() => elegirHerramienta("resaltar"));
+      case "escribir": return conDocumento(() => elegirHerramienta("texto"));
+      case "word2pdf": case "pdf2word": case "img2pdf": case "imagenes": return abrirRapida(id);
       case "censurar": return conDocumento(() => elegirHerramienta("censurar"));
       case "escanear": return abrirEscaner();
       case "unir": return abrirRapida("unir");
@@ -544,7 +546,7 @@ export default function App() {
   async function abrirRapida(id: IdHerramienta) {
     if (id === "escanear") return abrirEscaner();
     let inicial: Abierto | null = null;
-    if (doc && archivo && id !== "img2pdf") {
+    if (doc && archivo && id !== "img2pdf" && id !== "ocrimg" && id !== "word2pdf") {
       // con zonas para censurar sin aplicar, la copia saldría con los datos debajo: primero hay que guardar
       if (await motor.censurasPendientes().catch(() => 0) > 0) { avisar(T("Primero guardá el PDF para que se aplique la censura."), "error"); return; }
       try {
@@ -1156,18 +1158,26 @@ const NOMBRE_TEMA: Record<Tema, string> = { auto: "Automático", claro: "Claro",
 
 type Tarea = { id: string; icono: typeof Type; titulo: string };
 // ordenadas de la más usada a la menos usada
-const RAPIDAS: Tarea[] = [
-  { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
-  { id: "dividir", icono: Scissors, titulo: "Dividir un PDF" },
-  { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
-  { id: "escanear", icono: Camera, titulo: "Escanear con la cámara" },
-  { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
-  { id: "todas", icono: LayoutGrid, titulo: "Ver todas las herramientas" },
-];
-const EDITAR: Tarea[] = [
-  { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
-  { id: "anotar", icono: Highlighter, titulo: "Resaltar y anotar" },
-  { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
+// Atajos del inicio, agrupados como en el panel de herramientas (el resto está en "Ver todas").
+const GRUPOS_INICIO: { titulo: string; ayuda: string; tareas: Tarea[] }[] = [
+  { titulo: "Editar y firmar", ayuda: "Abrí un PDF y trabajá sobre él.", tareas: [
+    { id: "firmar", icono: Signature, titulo: "Firmar un documento" },
+    { id: "anotar", icono: Highlighter, titulo: "Resaltar y anotar" },
+    { id: "escribir", icono: Type, titulo: "Escribir sobre el PDF" },
+    { id: "censurar", icono: EyeOff, titulo: "Tapar datos privados" },
+  ] },
+  { titulo: "Convertir", ayuda: "Te dan un archivo nuevo, sin tocar el original.", tareas: [
+    { id: "word2pdf", icono: FileType2, titulo: "Word a PDF" },
+    { id: "pdf2word", icono: FilePenLine, titulo: "PDF a Word" },
+    { id: "img2pdf", icono: Images, titulo: "Imagen a PDF" },
+    { id: "imagenes", icono: FileImage, titulo: "PDF a imágenes" },
+  ] },
+  { titulo: "Organizar y mandar", ayuda: "Uní, separá, achicá o protegé.", tareas: [
+    { id: "unir", icono: Combine, titulo: "Unir varios PDF" },
+    { id: "dividir", icono: Scissors, titulo: "Dividir un PDF" },
+    { id: "achicar", icono: Minimize2, titulo: "Achicar para mandar" },
+    { id: "proteger", icono: Lock, titulo: "Proteger con contraseña" },
+  ] },
 ];
 
 function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () => void; alEscanear: () => void; alTarea: (id: string) => void; alActualizar: () => void }) {
@@ -1194,14 +1204,14 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
           </button>}
         </div>
       </div>
-      {([["Herramientas rápidas", "Te dan un archivo nuevo, sin tocar el original.", RAPIDAS], ["Editar un PDF", "Abrilo y trabajá sobre él.", EDITAR]] as const).map(([titulo, ayuda, lista], g) => (
-        <div key={titulo} className="inicio__grupo">
-          <h2 className="inicio__pregunta">{T(titulo)} <small>{T(ayuda)}</small></h2>
+      {GRUPOS_INICIO.map((grupo, g) => (
+        <div key={grupo.titulo} className="inicio__grupo">
+          <h2 className="inicio__pregunta">{T(grupo.titulo)} <small>{T(grupo.ayuda)}</small></h2>
           <ul className="tareas">
-            {lista.map((t, i) => {
+            {grupo.tareas.map((t, i) => {
               const I = t.icono;
               return (
-                <li key={t.id} style={{ animationDelay: `${0.3 + (g * 6 + i) * 0.04}s` }}>
+                <li key={t.id} style={{ animationDelay: `${0.3 + (g * 4 + i) * 0.04}s` }}>
                   <button className="tarea" onClick={() => alTarea(t.id)}>
                     <span className="tarea__icono"><I size={22} aria-hidden /></span>
                     <span>{T(t.titulo)}</span>
@@ -1212,6 +1222,9 @@ function Inicio({ alAbrir, alEscanear, alTarea, alActualizar }: { alAbrir: () =>
           </ul>
         </div>
       ))}
+      <button className="boton boton--suave boton--grande inicio__todas" onClick={() => alTarea("todas")}>
+        <LayoutGrid size={20} aria-hidden /> {T("Ver todas las herramientas")}
+      </button>
       <p className="inicio__sello"><ShieldCheck size={16} aria-hidden /> {T("Sin conexión · Nada sale de tu equipo")}{!celular && <> · <kbd>Ctrl</kbd>+<kbd>K</kbd> {T("para buscar")}</>}</p>
       <footer className="inicio__pie">
         <span>{T("Ozone PDF es gratis y de código abierto. Hecho por")} <strong>Nicolás Pacheco</strong> · <a href="https://pachelabs.net" onClick={(e) => { e.preventDefault(); abrirEnlace("https://pachelabs.net"); }}>Pache<span className="marca__punto">.</span>Labs</a> · {T("Argentina")}</span>

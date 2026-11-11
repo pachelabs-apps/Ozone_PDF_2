@@ -365,6 +365,20 @@ const ops: Record<string, (a: any) => any> = {
     return { lista, __transferir: lista.map((x) => x.datos.buffer) };
   },
   aTexto() { return H.aTexto(documento()); },
+  aWord() { return H.aWord(mupdf, documento()); },
+  // Word → PDF: arma un documento nuevo a partir del HTML que sale del .docx
+  desdeHtml({ partes, hoja }: { partes: string[]; hoja: string }) {
+    const r = H.htmlAPdf(mupdf, partes, hoja);
+    const d = mupdf.Document.openDocument(r.datos, "application/pdf");
+    if (!(d instanceof mupdf.PDFDocument)) { d.destroy(); throw new Error("NO_PDF"); }
+    d.subsetFonts(); // solo las letras usadas: sin esto, un texto en chino o japonés suma casi 2 MB de fuente
+    instantaneas.length = 0;
+    doc?.destroy();
+    doc = d;
+    original = r.datos;
+    claveUsada = null;
+    return info();
+  },
   paginaParaOcr({ i, dpi }: { i: number; dpi: number }) {
     const r = H.paginaParaOcr(mupdf, documento(), i, dpi);
     return { ...r, __transferir: [r.png.buffer] };

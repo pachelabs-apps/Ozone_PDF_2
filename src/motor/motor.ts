@@ -127,6 +127,8 @@ class Motor {
   limpiarDatos() { return this.pedir<{ notas: number }>("limpiarDatos"); }
   aImagenes(dpi: number, formato: string) { return this.pedir<{ lista: { pagina: number; datos: Uint8Array }[] }>("aImagenes", { dpi, formato }); }
   aTexto() { return this.pedir<string[]>("aTexto"); }
+  aWord() { return this.pedir<import("../word").PaginaWord[]>("aWord"); }
+  desdeHtml(partes: string[], hoja: string) { return this.pedir<InfoDoc>("desdeHtml", { partes, hoja }); }
   paginaParaOcr(i: number, dpi: number) { return this.pedir<{ png: Uint8Array; conTexto: boolean; dpi: number }>("paginaParaOcr", { i, dpi }); }
   agregarCapaTexto(i: number, pdf: Uint8Array) { return this.pedir<boolean>("agregarCapaTexto", { i, pdf }, [pdf.buffer as ArrayBuffer]); }
   guardar(o: { clave?: string; quitarClave?: boolean } = {}) {
