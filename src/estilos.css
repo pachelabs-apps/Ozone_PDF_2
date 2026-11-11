@@ -980,3 +980,15 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
 .rapida__marca--tocable:hover, .rapida__marca--tocable:focus-visible { text-decoration-style: solid; }
 .rapida__info { flex: none; opacity: .8; }
 .explica__archivo { margin-top: -4px; word-break: break-all; }
+/* tarjeta de archivo: nombre y botones arriba; avisos y contraseñas en una fila a lo ancho, debajo */
+.rapida__lista li { flex-wrap: wrap; }
+.rapida__extra { flex: 1 0 100%; display: grid; gap: 8px; padding: 2px 0 2px 30px; min-width: 0; }
+.rapida__etiquetas { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .82rem; }
+.rapida__extra .rapida__clave { margin-top: 0; flex: 1 1 220px; min-width: 0; }
+.rapida__extra .rapida__clave .campo { flex: 1; min-width: 0; max-width: 260px; }
+.rapida__extra .rapida__clave .boton { flex: none; }
+@media (max-width: 760px) {
+  .rapida__extra { padding-left: 0; }
+  /* en las herramientas rápidas Labcin tapaba los avisos de abajo */
+  .app:has(.rapida) .labcin-app, .app:has(.rapida) .labcin-volver { display: none; }
+}

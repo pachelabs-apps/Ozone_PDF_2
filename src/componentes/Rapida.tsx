@@ -457,20 +457,31 @@ export default function Rapida(p: {
                       <strong title={a.nombre}>{a.imagen || a.word ? null : <FileText size={14} aria-hidden />} {a.nombre}</strong>
                       <small>
                         {tam(a.tamano)}{a.paginas ? ` · ${a.paginas === 1 ? T("1 página") : T("{n} páginas", { n: a.paginas })}` : ""}
-                        {a.seguridad?.firma === "valida" && <Etiqueta alTocar={() => setExplicando({ tema: "firma", archivo: a })}><BadgeCheck size={13} aria-hidden /> {T("Con firma digital: la copia no va a tener una firma válida")}</Etiqueta>}
-                        {a.seguridad?.firma === "alterada" && <Etiqueta alTocar={() => setExplicando({ tema: "firmaAlterada", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Su firma digital ya no es válida")}</Etiqueta>}
-                        {conPermisos(a) && (aceptados.has(a.id)
-                          ? <Etiqueta alTocar={() => setExplicando({ tema: "permisos", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Con permisos del autor: se usa igual")}</Etiqueta>
-                          : <Etiqueta mal alTocar={() => setExplicando({ tema: "permisos", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Su autor pidió que no se modifique")}</Etiqueta>)}
-                        {a.error && (a.tipoError
-                          ? <Etiqueta mal alTocar={() => setExplicando({ tema: a.tipoError!, archivo: a })}>{a.error}</Etiqueta>
-                          : <span className="rapida__marca rapida__marca--mal">{a.error}</span>)}
                       </small>
+                    </span>
+                    {varios && !esWord && <>
+                      <button className="icono" onClick={() => mover(i, -1)} disabled={i === 0} aria-label={T("Subir")} title={T("Subir")}><ArrowUp size={16} /></button>
+                      <button className="icono" onClick={() => mover(i, 1)} disabled={i === archivos.length - 1} aria-label={T("Bajar")} title={T("Bajar")}><ArrowDown size={16} /></button>
+                    </>}
+                    <button className="icono" onClick={() => setArchivos((v) => v.filter((x) => x.id !== a.id))} aria-label={T("Sacar de la lista")} title={T("Sacar de la lista")}><X size={16} /></button>
+                    {/* debajo, a lo ancho de la tarjeta: avisos, contraseñas y "Usarlo igual" (en el celular no entran al lado del nombre) */}
+                    {(a.seguridad?.firma || conPermisos(a) || a.error || a.necesitaClave) && (
+                      <div className="rapida__extra">
+                        <div className="rapida__etiquetas">
+                          {a.seguridad?.firma === "valida" && <Etiqueta alTocar={() => setExplicando({ tema: "firma", archivo: a })}><BadgeCheck size={13} aria-hidden /> {T("Con firma digital: la copia no va a tener una firma válida")}</Etiqueta>}
+                          {a.seguridad?.firma === "alterada" && <Etiqueta alTocar={() => setExplicando({ tema: "firmaAlterada", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Su firma digital ya no es válida")}</Etiqueta>}
+                          {conPermisos(a) && (aceptados.has(a.id)
+                            ? <Etiqueta alTocar={() => setExplicando({ tema: "permisos", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Con permisos del autor: se usa igual")}</Etiqueta>
+                            : <Etiqueta mal alTocar={() => setExplicando({ tema: "permisos", archivo: a })}><ShieldAlert size={13} aria-hidden /> {T("Su autor pidió que no se modifique")}</Etiqueta>)}
+                          {a.error && (a.tipoError
+                            ? <Etiqueta mal alTocar={() => setExplicando({ tema: a.tipoError!, archivo: a })}>{a.error}</Etiqueta>
+                            : <span className="rapida__marca rapida__marca--mal">{a.error}</span>)}
+                        </div>
                       {conPermisos(a) && !aceptados.has(a.id) && (
                         <div className="rapida__permisos">
                           <form className="rapida__clave" onSubmit={(e) => { e.preventDefault(); claveDePermisos(a, String(new FormData(e.currentTarget).get("c") || "")); }}>
                             <Lock size={14} aria-hidden />
-                            <input name="c" type="password" className="campo campo--chico" placeholder={T("Contraseña de permisos")} aria-label={T("Contraseña de permisos de {n}", { n: a.nombre })} />
+                            <input name="c" type="password" className="campo campo--chico" placeholder={T("Contraseña")} aria-label={T("Contraseña de permisos de {n}", { n: a.nombre })} />
                             <button className="boton boton--suave boton--chico">{T("Aceptar")}</button>
                           </form>
                           <button type="button" className="boton boton--suave boton--chico" onClick={() => usarIgual(a)}>{T("Usarlo igual")}</button>
@@ -483,12 +494,8 @@ export default function Rapida(p: {
                           <button className="boton boton--suave boton--chico">{T("Aceptar")}</button>
                         </form>
                       )}
-                    </span>
-                    {varios && !esWord && <>
-                      <button className="icono" onClick={() => mover(i, -1)} disabled={i === 0} aria-label={T("Subir")} title={T("Subir")}><ArrowUp size={16} /></button>
-                      <button className="icono" onClick={() => mover(i, 1)} disabled={i === archivos.length - 1} aria-label={T("Bajar")} title={T("Bajar")}><ArrowDown size={16} /></button>
-                    </>}
-                    <button className="icono" onClick={() => setArchivos((v) => v.filter((x) => x.id !== a.id))} aria-label={T("Sacar de la lista")} title={T("Sacar de la lista")}><X size={16} /></button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>
