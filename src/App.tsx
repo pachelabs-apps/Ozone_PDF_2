@@ -33,6 +33,8 @@ type Paso =
   | { tipo: "crear"; pagina: number; id: number }
   | { tipo: "mover"; pagina: number; id: number; dx: number; dy: number }
   | { tipo: "ajustar"; pagina: number; id: number; r: Rect }
+  | { tipo: "texto"; pagina: number; id: number; previo: string }
+  | { tipo: "textoBorrado"; pagina: number; r: Rect; texto: string; tam: number; color: number[] }
   | { tipo: "estructura" };
 
 const HERRAMIENTAS: { id: Herramienta; icono: typeof Type; nombre: string; ayuda: string }[] = [
@@ -40,7 +42,7 @@ const HERRAMIENTAS: { id: Herramienta; icono: typeof Type; nombre: string; ayuda
   { id: "resaltar", icono: Highlighter, nombre: "Resaltar", ayuda: "Arrastrá sobre el texto para resaltarlo." },
   { id: "subrayar", icono: Underline, nombre: "Subrayar", ayuda: "Arrastrá sobre el texto para subrayarlo." },
   { id: "tachar", icono: Strikethrough, nombre: "Tachar", ayuda: "Arrastrá sobre el texto para tacharlo." },
-  { id: "texto", icono: Type, nombre: "Texto", ayuda: "Tocá donde querés escribir." },
+  { id: "texto", icono: Type, nombre: "Texto", ayuda: "Tocá donde querés escribir. Para cambiar un texto, tocalo; para moverlo, arrastralo." },
   { id: "recuadro", icono: Square, nombre: "Recuadro", ayuda: "Arrastrá para dibujar un recuadro." },
   { id: "dibujar", icono: PenLine, nombre: "Dibujar", ayuda: "Dibujá a mano alzada sobre la página." },
   { id: "firma", icono: Signature, nombre: "Firmar", ayuda: "Tocá donde va la firma." },
@@ -96,7 +98,8 @@ export default function App() {
   const [firma, setFirma] = useState<Firma | null>(() => firmaGuardada());
   const [modalFirma, setModalFirma] = useState(false);
   const [confirmarCensura, setConfirmarCensura] = useState<number | null>(null);
-  const [textoAbierto, setTextoAbierto] = useState<{ pagina: number; x: number; y: number } | null>(null);
+  // id/inicial: se está editando un texto que ya estaba en el PDF
+  const [textoAbierto, setTextoAbierto] = useState<{ pagina: number; x: number; y: number; id?: number; inicial?: string; tam?: number; colorRgb?: number[]; color?: string } | null>(null);
   const [actual, setActual] = useState(0);
   const [arrastrandoArchivo, setArrastrandoArchivo] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -360,9 +363,36 @@ export default function App() {
     }
   }
 
+  function editarTexto(pagina: number, a: Anotacion) {
+    if (bloqueado()) return;
+    const c = a.color && a.color.length >= 3 ? a.color : [0, 0, 0];
+    setTextoAbierto({
+      pagina, x: a.r[0] + 2, y: a.r[1] + 1, id: a.id, inicial: a.contenido ?? "", tam: a.tam ?? tamTexto, colorRgb: c,
+      color: `rgb(${c.slice(0, 3).map((v) => Math.round(v * 255)).join(",")})`,
+    });
+  }
+
   async function terminarTexto(texto: string | null) {
     const t = textoAbierto;
     setTextoAbierto(null);
+    if (t && t.id !== undefined) {
+      // editar un texto que ya estaba
+      if (texto === null || texto === t.inicial) return;
+      const previo = anots[t.pagina]?.find((x) => x.id === t.id);
+      try {
+        if (!texto.trim()) {
+          await motor.borrar(t.pagina, t.id);
+          if (previo) setHistorial((h) => [...h, { tipo: "textoBorrado", pagina: t.pagina, r: previo.r, texto: t.inicial ?? "", tam: t.tam ?? tamTexto, color: t.colorRgb ?? [0, 0, 0] }]);
+          setSeleccion(null);
+        } else {
+          await motor.editarTexto(t.pagina, t.id, texto);
+          setHistorial((h) => [...h, { tipo: "texto", pagina: t.pagina, id: t.id!, previo: t.inicial ?? "" }]);
+        }
+        setCambios(true);
+        await recargar(t.pagina);
+      } catch (e) { console.error(e); }
+      return;
+    }
     if (!t || !texto) return;
     const creada = await motor.texto(t.pagina, t.x, t.y - tamTexto * 0.3, texto, tamTexto, color.rgb);
     setHistorial((h) => [...h, { tipo: "crear", pagina: t.pagina, id: creada.id }]);
@@ -387,6 +417,8 @@ export default function App() {
       if (paso.tipo === "crear") await motor.borrar(paso.pagina, paso.id);
       if (paso.tipo === "mover") await motor.mover(paso.pagina, paso.id, -paso.dx, -paso.dy);
       if (paso.tipo === "ajustar") await motor.ajustar(paso.pagina, paso.id, paso.r);
+      if (paso.tipo === "texto") await motor.editarTexto(paso.pagina, paso.id, paso.previo);
+      if (paso.tipo === "textoBorrado") await motor.texto(paso.pagina, paso.r[0], paso.r[1], paso.texto, paso.tam, paso.color);
     } catch { /* la anotación ya no existe */ }
     setSeleccion(null);
     await recargar((paso as { pagina: number }).pagina);
@@ -397,7 +429,7 @@ export default function App() {
     const s = seleccion;
     setSeleccion(null);
     await motor.borrar(s.pagina, s.id);
-    setHistorial((h) => h.filter((p) => p.tipo === "estructura" || !(p.pagina === s.pagina && p.id === s.id)));
+    setHistorial((h) => h.filter((p) => p.tipo === "estructura" || p.tipo === "textoBorrado" || !(p.pagina === s.pagina && p.id === s.id)));
     setCambios(true);
     await recargar(s.pagina);
   }
@@ -1016,6 +1048,7 @@ export default function App() {
                   alSoltar={(a) => ejecutar(i, a)}
                   alSeleccionar={setSeleccion}
                   alTerminarTexto={terminarTexto}
+                  alEditarTexto={(a) => editarTexto(i, a)}
                 />
               ))}
               <p className="pie-vista">{T("Página {n} de {total}", { n: actual + 1, total: doc.paginas.length })}</p>

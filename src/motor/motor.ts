@@ -10,7 +10,7 @@ export type Seguridad = {
   adjuntos: number;
 };
 export type InfoDoc = { paginas: InfoPagina[]; titulo: string; seguridad?: Seguridad };
-export type Anotacion = { id: number; tipo: string; r: Rect; movible?: boolean; redimensionable?: boolean };
+export type Anotacion = { id: number; tipo: string; r: Rect; movible?: boolean; redimensionable?: boolean; contenido?: string; tam?: number; color?: number[] };
 
 type Pendiente = { ok: (v: any) => void; mal: (e: Error) => void };
 
@@ -85,6 +85,7 @@ class Motor {
   censurasPendientes() {
     return this.pedir<number>("censurasPendientes");
   }
+  editarTexto(pagina: number, id: number, texto: string) { return this.pedir<Anotacion>("editarTexto", { pagina, id, texto }); }
   mover(pagina: number, id: number, dx: number, dy: number) {
     return this.pedir<Anotacion>("mover", { pagina, id, dx, dy });
   }

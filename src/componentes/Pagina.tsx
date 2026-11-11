@@ -14,13 +14,14 @@ type Props = {
   herramienta: Herramienta;
   anotaciones: Anotacion[];
   seleccion: Seleccion;
-  textoAbierto: { x: number; y: number } | null;
+  textoAbierto: { x: number; y: number; inicial?: string; tam?: number; color?: string } | null;
   tamTexto: number;
   colorCss: string;
   alVer: (i: number, visible: boolean) => void;
   alSoltar: (accion: Accion) => void;
   alSeleccionar: (s: Seleccion) => void;
   alTerminarTexto: (texto: string | null) => void;
+  alEditarTexto: (a: Anotacion) => void; // tocar un texto ya puesto lo abre para cambiarlo
 };
 
 export type Accion =
@@ -35,7 +36,7 @@ export type Accion =
 type Arrastre =
   | { modo: "caja"; a: Punto; b: Punto }
   | { modo: "trazo"; puntos: Punto[] }
-  | { modo: "mover"; id: number; a: Punto; b: Punto }
+  | { modo: "mover"; id: number; a: Punto; b: Punto; editar?: boolean }
   | { modo: "ajustar"; id: number; r0: Rect; a: Punto; b: Punto };
 
 const LIENZO_MAX = 4096 * 4096; // límite de píxeles por página para no agotar la memoria
@@ -117,12 +118,25 @@ export default function Pagina(p: Props) {
     const h = p.herramienta;
     if (h === "seleccionar") {
       const a = tocada(pt);
+      // un texto ya seleccionado: tocarlo de nuevo lo abre para editar (arrastrarlo lo mueve)
+      const yaElegido = !!a && a.tipo === "FreeText" && p.seleccion?.pagina === p.indice && p.seleccion.id === a.id;
       p.alSeleccionar(a ? { pagina: p.indice, id: a.id } : null);
       if (a?.movible) {
         (e.currentTarget as Element).setPointerCapture(e.pointerId);
-        setArrastre({ modo: "mover", id: a.id, a: pt, b: pt });
+        setArrastre({ modo: "mover", id: a.id, a: pt, b: pt, editar: yaElegido });
       }
       return;
+    }
+    if (h === "texto") {
+      // sobre un texto ya puesto: tocarlo lo abre para editar y arrastrarlo lo mueve
+      const a = tocada(pt);
+      if (a && a.tipo === "FreeText") {
+        e.preventDefault();
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        p.alSeleccionar({ pagina: p.indice, id: a.id });
+        setArrastre({ modo: "mover", id: a.id, a: pt, b: pt, editar: true });
+        return;
+      }
     }
     if (h === "texto" || h === "firma") {
       // se evita que el clic le saque el foco al cuadro de texto que se abre
@@ -155,7 +169,13 @@ export default function Pagina(p: Props) {
     }
     const dx = a.b[0] - a.a[0], dy = a.b[1] - a.a[1];
     if (a.modo === "mover") {
-      if (Math.abs(dx) + Math.abs(dy) > 0.5) p.alSoltar({ tipo: "mover", id: a.id, dx, dy });
+      // en pantalla: más de unos píxeles es arrastrar; menos es un toque
+      const movio = (Math.abs(dx) + Math.abs(dy)) * p.zoom > (a.editar ? 6 : 0.5);
+      if (movio) p.alSoltar({ tipo: "mover", id: a.id, dx, dy });
+      else if (a.editar) {
+        const an = p.anotaciones.find((x) => x.id === a.id);
+        if (an) p.alEditarTexto(an);
+      }
       return;
     }
     if (a.modo === "ajustar") {
@@ -239,8 +259,9 @@ export default function Pagina(p: Props) {
           <EditorTexto
             x={(p.textoAbierto.x - p.info.x0) * p.zoom}
             y={(p.textoAbierto.y - p.info.y0) * p.zoom}
-            tam={p.tamTexto * p.zoom}
-            color={p.colorCss}
+            tam={(p.textoAbierto.tam ?? p.tamTexto) * p.zoom}
+            color={p.textoAbierto.color ?? p.colorCss}
+            inicial={p.textoAbierto.inicial}
             alTerminar={p.alTerminarTexto}
           />
         )}
@@ -249,32 +270,40 @@ export default function Pagina(p: Props) {
   );
 }
 
-function EditorTexto(p: { x: number; y: number; tam: number; color: string; alTerminar: (t: string | null) => void }) {
+// Cuadro para escribir. Con "inicial" edita un texto que ya estaba (tapa al de abajo mientras tanto).
+// Devuelve null si se cancela (Escape) y "" si se dejó vacío.
+function EditorTexto(p: { x: number; y: number; tam: number; color: string; inicial?: string; alTerminar: (t: string | null) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const hecho = useRef(false);
+  const ajustar = (t: HTMLTextAreaElement) => {
+    t.style.height = "auto";
+    t.style.height = t.scrollHeight + "px";
+    t.style.width = "auto";
+    t.style.width = Math.max(120, t.scrollWidth + 8) + "px";
+  };
   useEffect(() => {
-    const t = setTimeout(() => ref.current?.focus({ preventScroll: true }), 0);
+    const el = ref.current;
+    if (el && p.inicial !== undefined) { el.value = p.inicial; ajustar(el); }
+    const t = setTimeout(() => {
+      el?.focus({ preventScroll: true });
+      if (el && p.inicial) el.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   function terminar(t: string | null) {
     if (hecho.current) return;
     hecho.current = true;
-    p.alTerminar(t && t.trim() ? t : null);
+    p.alTerminar(t === null ? null : t.trim() ? t : "");
   }
   return (
     <textarea
       ref={ref}
-      className="editor-texto"
+      className={"editor-texto" + (p.inicial !== undefined ? " editor-texto--editando" : "")}
       style={{ left: p.x, top: p.y, fontSize: p.tam, color: p.color }}
       rows={1}
       onPointerDown={(e) => e.stopPropagation()}
-      onInput={(e) => {
-        const t = e.currentTarget;
-        t.style.height = "auto";
-        t.style.height = t.scrollHeight + "px";
-        t.style.width = "auto";
-        t.style.width = Math.max(120, t.scrollWidth + 8) + "px";
-      }}
+      onInput={(e) => ajustar(e.currentTarget)}
       onKeyDown={(e) => {
         if (e.key === "Escape") terminar(null);
         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) terminar(e.currentTarget.value);

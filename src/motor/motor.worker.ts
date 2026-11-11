@@ -90,7 +90,29 @@ function etiqueta(a: mupdf.PDFAnnotation) {
   } catch {
     r = a.getRect() as Rect;
   }
+  if (tipo === "FreeText") {
+    // para poder editar el texto después: contenido, tamaño y color
+    let tam = 12, color: number[] = [0, 0, 0];
+    try { const da = a.getDefaultAppearance(); tam = da.size || 12; color = (da.color as number[]) || color; } catch { /* sin apariencia */ }
+    return { id: idDe(a), tipo, r, contenido: a.getContents(), tam, color };
+  }
   return { id: idDe(a), tipo, r };
+}
+
+// Tamaño del cuadro de una nota de texto: ancho real de cada línea con Helvetica; lo que la fuente
+// no tiene (chino, ruso…) se cuenta como un cuadrado entero.
+function medidaTexto(texto: string, tam: number) {
+  helv ??= new mupdf.Font("Helvetica");
+  const anchoDe = (l: string) => {
+    let s = 0;
+    for (const ch of l) {
+      const g = helv!.encodeCharacter(ch.codePointAt(0)!);
+      s += g > 0 ? helv!.advanceGlyph(g) : 1;
+    }
+    return s * tam;
+  };
+  const lineas = texto.split("\n");
+  return { w: Math.max(Math.max(...lineas.map(anchoDe), 0) * 1.08 + 10, 30), h: lineas.length * tam * 1.25 + 6 };
 }
 
 const MOVIBLES = new Set(["Stamp", "FreeText", "Square", "Circle", "Redact", "Ink", "Highlight", "Underline", "StrikeOut"]);
@@ -162,19 +184,7 @@ const ops: Record<string, (a: any) => any> = {
 
   texto({ pagina, x, y, texto, tam, color }: { pagina: number; x: number; y: number; texto: string; tam: number; color: number[] }) {
     const p = documento().loadPage(pagina);
-    const lineas = texto.split("\n");
-    // ancho real de cada línea con la fuente Helvetica; lo que no tiene (chino, ruso…) se cuenta como un cuadrado entero
-    helv ??= new mupdf.Font("Helvetica");
-    const anchoDe = (l: string) => {
-      let s = 0;
-      for (const ch of l) {
-        const g = helv!.encodeCharacter(ch.codePointAt(0)!);
-        s += g > 0 ? helv!.advanceGlyph(g) : 1;
-      }
-      return s * tam;
-    };
-    const w = Math.max(Math.max(...lineas.map(anchoDe), 0) * 1.08 + 10, 30);
-    const h = lineas.length * tam * 1.25 + 6;
+    const { w, h } = medidaTexto(texto, tam);
     const an = p.createAnnotation("FreeText");
     an.setRect([x, y, x + w, y + h]);
     an.setDefaultAppearance("Helv", tam, color as mupdf.AnnotColor);
@@ -182,6 +192,19 @@ const ops: Record<string, (a: any) => any> = {
     an.setContents(texto);
     an.update();
     return etiqueta(an);
+  },
+
+  // Cambia lo escrito en una nota de texto; el cuadro se ajusta al texto nuevo y queda en el mismo lugar.
+  editarTexto({ pagina, id, texto }: { pagina: number; id: number; texto: string }) {
+    const { a } = buscar(pagina, id);
+    let tam = 12;
+    try { tam = a.getDefaultAppearance().size || 12; } catch { /* sin apariencia */ }
+    const r = a.getRect();
+    const { w, h } = medidaTexto(texto, tam);
+    a.setContents(texto);
+    a.setRect([r[0], r[1], r[0] + w, r[1] + h]);
+    a.update();
+    return etiqueta(a);
   },
 
   rectangulo({ pagina, r, color }: { pagina: number; r: Rect; color: number[] }) {

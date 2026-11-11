@@ -1026,3 +1026,5 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
 .firma__datos { display: grid; gap: 8px; margin-top: 12px; }
 .firma__datos .modal__ayuda { margin: 0; }
 .firma__fecha { margin-top: 2px; }
+/* editar un texto que ya estaba: el cuadro tapa al de abajo para que no se vean los dos */
+.editor-texto--editando { background: #fff; }
