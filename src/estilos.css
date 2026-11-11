@@ -1041,3 +1041,29 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
 }
 /* mientras se escribe un texto, Labcin se esconde para no tapar el cuadro */
 .app:has(.editor-texto) .labcin-app { display: none; }
+/* ---------- inicio en la compu: centrado y con aire (en el celular no cambia) ---------- */
+@media (min-width: 761px) {
+  .inicio--tareas .inicio__zona {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    width: min(760px, 100%); padding: 30px 40px 30px;
+  }
+  .inicio--tareas .inicio__avatar { width: 78px; height: 78px; margin: 0 0 14px; }
+  .inicio--tareas h1 { margin: 0 0 8px; }
+  .inicio--tareas .inicio__zona p { margin: 0 0 20px; }
+  .inicio--tareas .inicio__botones { justify-content: center; gap: 12px; }
+  .inicio__todas { margin-top: 28px; }
+}
+@media (min-width: 761px) and (min-height: 821px) {
+  .inicio--tareas { padding-top: 34px; padding-bottom: 48px; }
+  .inicio__grupo .inicio__pregunta { margin: 34px 0 14px; }
+  .inicio--tareas .tareas { gap: 14px; }
+  .inicio--tareas .tarea { padding: 16px 18px; min-height: 78px; }
+  .inicio__sello { margin-top: 26px !important; }
+}
+@media (min-width: 761px) and (max-height: 820px) {
+  .inicio--tareas .inicio__zona { padding: 18px 28px; }
+  .inicio--tareas .inicio__avatar { width: 58px; height: 58px; margin-bottom: 8px; }
+  .inicio--tareas .inicio__zona p { margin-bottom: 12px; }
+  .inicio__grupo .inicio__pregunta { margin: 18px 0 8px; }
+  .inicio__todas { margin-top: 18px; }
+}
