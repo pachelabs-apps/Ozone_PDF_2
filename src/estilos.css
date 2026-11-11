@@ -1020,3 +1020,9 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
   .inicio--tareas .inicio__grupo .inicio__pregunta { margin: 26px 0 12px; }
   .inicio--tareas .tareas { gap: 12px; }
 }
+/* firma: datos debajo del dibujo (aclaración, cargo, matrícula, fecha) */
+.firma__agregar, .firma__quitar { border: 0; background: none; padding: 0; margin-top: 12px; color: var(--rojo); font: inherit; font-weight: 700; font-size: .92rem; cursor: pointer; }
+.firma__quitar { margin-top: 2px; justify-self: start; font-weight: 400; color: var(--tinta-suave); text-decoration: underline; }
+.firma__datos { display: grid; gap: 8px; margin-top: 12px; }
+.firma__datos .modal__ayuda { margin: 0; }
+.firma__fecha { margin-top: 2px; }

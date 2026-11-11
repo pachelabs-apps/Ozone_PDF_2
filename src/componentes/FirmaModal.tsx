@@ -1,9 +1,52 @@
 import { useEffect, useRef, useState } from "react";
-import { T } from "../i18n";
+import { T, idioma } from "../i18n";
 
 export type Firma = { png: Uint8Array; url: string; aspecto: number };
 
 const CLAVE = "ozone.firma";
+// Lo que va debajo del dibujo, como en un sello: aclaración, cargo o área, matrícula, fecha.
+type Datos = { aclaracion: string; cargo: string; otro: string; fecha: boolean };
+const SIN_DATOS: Datos = { aclaracion: "", cargo: "", otro: "", fecha: false };
+function leerDatos(): Datos {
+  try { return { ...SIN_DATOS, ...JSON.parse(localStorage.getItem(CLAVE + ".datos") || "{}") }; } catch { return SIN_DATOS; }
+}
+const hayDatos = (d: Datos) => !!(d.aclaracion.trim() || d.cargo.trim() || d.otro.trim() || d.fecha);
+
+// Arma la imagen final: el dibujo arriba, una línea fina y los datos centrados debajo.
+async function componer(dibujo: HTMLCanvasElement, d: Datos): Promise<HTMLCanvasElement> {
+  const lineas: { t: string; negrita: boolean }[] = [];
+  if (d.aclaracion.trim()) lineas.push({ t: d.aclaracion.trim(), negrita: true });
+  if (d.cargo.trim()) lineas.push({ t: d.cargo.trim(), negrita: false });
+  if (d.otro.trim()) lineas.push({ t: d.otro.trim(), negrita: false });
+  if (d.fecha) lineas.push({ t: new Date().toLocaleDateString(idioma() === "en" ? "en-US" : idioma()), negrita: false });
+  if (!lineas.length) return dibujo;
+  const w0 = dibujo.width, h0 = dibujo.height;
+  const fs = Math.round(Math.min(46, Math.max(22, w0 * 0.075)));
+  const fuente = (n: boolean) => `${n ? 700 : 400} ${fs}px Atkinson, system-ui, sans-serif`;
+  try { await Promise.all([document.fonts.load(fuente(true)), document.fonts.load(fuente(false))]); } catch { /* sigue con la de sistema */ }
+  const medir = document.createElement("canvas").getContext("2d")!;
+  const anchos = lineas.map((l) => { medir.font = fuente(l.negrita); return medir.measureText(l.t).width; });
+  const pad = Math.round(fs * 0.5);
+  const anchoTexto = Math.max(...anchos);
+  const W = Math.ceil(Math.max(w0, anchoTexto + pad * 2));
+  const altoLinea = Math.round(fs * 1.3);
+  const yLinea = h0 + Math.round(fs * 0.25);
+  const H = yLinea + Math.round(fs * 0.55) + altoLinea * lineas.length + Math.round(fs * 0.2);
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(dibujo, Math.round((W - w0) / 2), 0);
+  const largo = Math.min(W, Math.max(anchoTexto + pad, w0 * 0.8));
+  ctx.strokeStyle = "#555"; ctx.lineWidth = Math.max(1.5, fs / 16);
+  ctx.beginPath(); ctx.moveTo((W - largo) / 2, yLinea); ctx.lineTo((W + largo) / 2, yLinea); ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  lineas.forEach((l, i) => {
+    ctx.font = fuente(l.negrita);
+    ctx.fillStyle = l.negrita ? "#141414" : "#3a3a3a";
+    ctx.fillText(l.t, W / 2, yLinea + Math.round(fs * 0.55) + altoLinea * i + fs);
+  });
+  return c;
+}
 
 export function firmaGuardada(): Firma | null {
   try {
@@ -48,6 +91,8 @@ export default function FirmaModal(p: { alCerrar: (f: Firma | null) => void }) {
   const lienzo = useRef<HTMLCanvasElement>(null);
   const [hayTrazo, setHayTrazo] = useState(false);
   const [recordar, setRecordar] = useState(true);
+  const [datos, setDatos] = useState<Datos>(leerDatos);
+  const [conDatos, setConDatos] = useState(() => hayDatos(leerDatos()));
   const ultimo = useRef<[number, number] | null>(null);
   const tinta = getComputedStyle(document.documentElement).getPropertyValue("--tinta-firma").trim() || "#13235B";
 
@@ -60,6 +105,19 @@ export default function FirmaModal(p: { alCerrar: (f: Firma | null) => void }) {
     ctx.scale(dpr, dpr);
     ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.strokeStyle = tinta; ctx.lineWidth = 2.8;
+    // si ya hay una firma guardada, aparece cargada: se le pueden cambiar los datos sin volver a dibujarla
+    let cruda: string | null = null;
+    try { cruda = localStorage.getItem(CLAVE + ".cruda"); } catch { /* nada */ }
+    if (cruda) {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min((r.width * 0.9) / img.width, (r.height * 0.85) / img.height);
+        const w = img.width * k, h = img.height * k;
+        ctx.drawImage(img, (r.width - w) / 2, (r.height - h) / 2, w, h);
+        setHayTrazo(true);
+      };
+      img.src = cruda;
+    }
     const esc = (e: KeyboardEvent) => e.key === "Escape" && p.alCerrar(null);
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
@@ -77,24 +135,26 @@ export default function FirmaModal(p: { alCerrar: (f: Firma | null) => void }) {
     setHayTrazo(false);
   }
 
-  async function usar() {
-    const c = recortar(lienzo.current!);
-    if (!c) return;
+  async function terminar(dibujo: HTMLCanvasElement) {
+    const d = conDatos ? datos : SIN_DATOS;
+    const c = await componer(dibujo, d);
     const url = c.toDataURL("image/png");
     const f: Firma = { url, png: dataUrlABytes(url), aspecto: c.width / c.height };
-    guardar(f);
-    p.alCerrar(f);
-  }
-
-  function guardar(f: Firma) {
     try {
       if (recordar) {
         localStorage.setItem(CLAVE, f.url);
         localStorage.setItem(CLAVE + ".aspecto", String(f.aspecto));
+        localStorage.setItem(CLAVE + ".cruda", dibujo.toDataURL("image/png"));
+        localStorage.setItem(CLAVE + ".datos", JSON.stringify(d));
       } else {
-        localStorage.removeItem(CLAVE);
+        for (const k of ["", ".aspecto", ".cruda", ".datos"]) localStorage.removeItem(CLAVE + k);
       }
     } catch { /* sin almacenamiento */ }
+    p.alCerrar(f);
+  }
+  async function usar() {
+    const c = recortar(lienzo.current!);
+    if (c) await terminar(c);
   }
 
   function subir() {
@@ -114,10 +174,7 @@ export default function FirmaModal(p: { alCerrar: (f: Firma | null) => void }) {
           const k = Math.min(1, max / Math.max(img.width, img.height));
           c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
           c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-          const url = c.toDataURL("image/png");
-          const firma: Firma = { url, png: dataUrlABytes(url), aspecto: c.width / c.height };
-          guardar(firma);
-          p.alCerrar(firma);
+          terminar(c);
         };
         img.src = String(lector.result);
       };
@@ -159,6 +216,24 @@ export default function FirmaModal(p: { alCerrar: (f: Firma | null) => void }) {
           onPointerUp={() => (ultimo.current = null)}
           onPointerCancel={() => (ultimo.current = null)}
         />
+        {conDatos ? (
+          <div className="firma__datos">
+            <p className="modal__ayuda">{T("Van debajo de la firma, como en un sello. Todos son opcionales.")}</p>
+            <input className="campo" value={datos.aclaracion} onChange={(e) => setDatos({ ...datos, aclaracion: e.target.value })}
+              placeholder={T("Aclaración (nombre y apellido)")} aria-label={T("Aclaración (nombre y apellido)")} maxLength={80} />
+            <input className="campo" value={datos.cargo} onChange={(e) => setDatos({ ...datos, cargo: e.target.value })}
+              placeholder={T("Cargo o área (opcional)")} aria-label={T("Cargo o área (opcional)")} maxLength={90} />
+            <input className="campo" value={datos.otro} onChange={(e) => setDatos({ ...datos, otro: e.target.value })}
+              placeholder={T("Matrícula, DNI o legajo (opcional)")} aria-label={T("Matrícula, DNI o legajo (opcional)")} maxLength={60} />
+            <label className="firma__recordar firma__fecha">
+              <input type="checkbox" checked={datos.fecha} onChange={(e) => setDatos({ ...datos, fecha: e.target.checked })} />
+              {T("Agregar la fecha de hoy")}
+            </label>
+            <button type="button" className="firma__quitar" onClick={() => setConDatos(false)}>{T("Quitar aclaración")}</button>
+          </div>
+        ) : (
+          <button type="button" className="firma__agregar" onClick={() => setConDatos(true)}>+ {T("Agregar aclaración, cargo o matrícula")}</button>
+        )}
         <label className="firma__recordar">
           <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} />
           {T("Recordar en este equipo")}
