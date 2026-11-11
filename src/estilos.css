@@ -1028,3 +1028,16 @@ html.a11y-sin-movimiento .carril__flecha svg { animation: none; }
 .firma__fecha { margin-top: 2px; }
 /* editar un texto que ya estaba: el cuadro tapa al de abajo para que no se vean los dos */
 .editor-texto--editando { background: #fff; }
+/* manijas para mover: en el cuadro mientras se escribe y en el marco de lo seleccionado (con cualquier herramienta) */
+.editor-texto__caja { position: absolute; z-index: 5; }
+.editor-texto__caja .editor-texto { position: static; display: block; }
+.editor-texto__mover, .seleccion__mover {
+  position: absolute; left: -15px; top: -15px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--rojo); color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); cursor: grab; touch-action: none; z-index: 6;
+}
+.editor-texto__mover:active, .seleccion__mover:active { cursor: grabbing; }
+@media (pointer: coarse) {
+  .editor-texto__mover, .seleccion__mover { width: 32px; height: 32px; left: -19px; top: -19px; }
+}
+/* mientras se escribe un texto, Labcin se esconde para no tapar el cuadro */
+.app:has(.editor-texto) .labcin-app { display: none; }

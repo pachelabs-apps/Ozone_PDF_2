@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Move } from "lucide-react";
 import { motor, type Anotacion, type InfoPagina, type Punto, type Rect } from "../motor/motor";
 
 export type Herramienta =
@@ -20,7 +21,7 @@ type Props = {
   alVer: (i: number, visible: boolean) => void;
   alSoltar: (accion: Accion) => void;
   alSeleccionar: (s: Seleccion) => void;
-  alTerminarTexto: (texto: string | null) => void;
+  alTerminarTexto: (texto: string | null, dx?: number, dy?: number) => void; // dx/dy: si se movió el cuadro (en puntos del PDF)
   alEditarTexto: (a: Anotacion) => void; // tocar un texto ya puesto lo abre para cambiarlo
 };
 
@@ -241,6 +242,18 @@ export default function Pagina(p: Props) {
 
         {sel && selR && (
           <div className="seleccion" style={aCss(selR)}>
+            {sel.movible && (
+              <span
+                className="seleccion__mover"
+                title="✥"
+                onPointerDown={(e) => {
+                  e.stopPropagation(); e.preventDefault();
+                  (e.currentTarget.parentElement!.parentElement as Element).setPointerCapture(e.pointerId);
+                  const pt = aPunto(e);
+                  setArrastre({ modo: "mover", id: sel.id, a: pt, b: pt });
+                }}
+              ><Move size={14} aria-hidden /></span>
+            )}
             {sel.redimensionable && (
               <span
                 className="seleccion__tirador"
@@ -262,7 +275,7 @@ export default function Pagina(p: Props) {
             tam={(p.textoAbierto.tam ?? p.tamTexto) * p.zoom}
             color={p.textoAbierto.color ?? p.colorCss}
             inicial={p.textoAbierto.inicial}
-            alTerminar={p.alTerminarTexto}
+            alTerminar={(t, dx, dy) => p.alTerminarTexto(t, dx / p.zoom, dy / p.zoom)}
           />
         )}
       </div>
@@ -272,9 +285,12 @@ export default function Pagina(p: Props) {
 
 // Cuadro para escribir. Con "inicial" edita un texto que ya estaba (tapa al de abajo mientras tanto).
 // Devuelve null si se cancela (Escape) y "" si se dejó vacío.
-function EditorTexto(p: { x: number; y: number; tam: number; color: string; inicial?: string; alTerminar: (t: string | null) => void }) {
+function EditorTexto(p: { x: number; y: number; tam: number; color: string; inicial?: string; alTerminar: (t: string | null, dx: number, dy: number) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const hecho = useRef(false);
+  // la manija mueve el cuadro mientras se escribe (sin cerrarlo)
+  const [off, setOff] = useState<[number, number]>([0, 0]);
+  const arrastre = useRef<{ x: number; y: number; o: [number, number] } | null>(null);
   const ajustar = (t: HTMLTextAreaElement) => {
     t.style.height = "auto";
     t.style.height = t.scrollHeight + "px";
@@ -294,13 +310,28 @@ function EditorTexto(p: { x: number; y: number; tam: number; color: string; inic
   function terminar(t: string | null) {
     if (hecho.current) return;
     hecho.current = true;
-    p.alTerminar(t === null ? null : t.trim() ? t : "");
+    p.alTerminar(t === null ? null : t.trim() ? t : "", off[0], off[1]);
   }
   return (
+    <div className="editor-texto__caja" style={{ left: p.x + off[0], top: p.y + off[1] }} onPointerDown={(e) => e.stopPropagation()}>
+    <span
+      className="editor-texto__mover"
+      aria-hidden
+      onPointerDown={(e) => {
+        e.preventDefault(); e.stopPropagation(); // preventDefault: el cuadro no pierde el foco
+        e.currentTarget.setPointerCapture(e.pointerId);
+        arrastre.current = { x: e.clientX, y: e.clientY, o: off };
+      }}
+      onPointerMove={(e) => {
+        const a = arrastre.current;
+        if (a) setOff([a.o[0] + e.clientX - a.x, a.o[1] + e.clientY - a.y]);
+      }}
+      onPointerUp={() => { arrastre.current = null; ref.current?.focus({ preventScroll: true }); }}
+    ><Move size={14} /></span>
     <textarea
       ref={ref}
       className={"editor-texto" + (p.inicial !== undefined ? " editor-texto--editando" : "")}
-      style={{ left: p.x, top: p.y, fontSize: p.tam, color: p.color }}
+      style={{ fontSize: p.tam, color: p.color }}
       rows={1}
       onPointerDown={(e) => e.stopPropagation()}
       onInput={(e) => ajustar(e.currentTarget)}
@@ -310,5 +341,6 @@ function EditorTexto(p: { x: number; y: number; tam: number; color: string; inic
       }}
       onBlur={(e) => terminar(e.currentTarget.value)}
     />
+    </div>
   );
 }

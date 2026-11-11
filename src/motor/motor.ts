@@ -85,6 +85,7 @@ class Motor {
   censurasPendientes() {
     return this.pedir<number>("censurasPendientes");
   }
+  estiloTexto(pagina: number, id: number, tam?: number, color?: number[]) { return this.pedir<Anotacion>("estiloTexto", { pagina, id, tam, color }); }
   editarTexto(pagina: number, id: number, texto: string) { return this.pedir<Anotacion>("editarTexto", { pagina, id, texto }); }
   mover(pagina: number, id: number, dx: number, dy: number) {
     return this.pedir<Anotacion>("mover", { pagina, id, dx, dy });

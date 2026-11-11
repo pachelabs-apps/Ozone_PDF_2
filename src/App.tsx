@@ -34,6 +34,7 @@ type Paso =
   | { tipo: "mover"; pagina: number; id: number; dx: number; dy: number }
   | { tipo: "ajustar"; pagina: number; id: number; r: Rect }
   | { tipo: "texto"; pagina: number; id: number; previo: string }
+  | { tipo: "estiloTexto"; pagina: number; id: number; tam: number; color: number[] }
   | { tipo: "textoBorrado"; pagina: number; r: Rect; texto: string; tam: number; color: number[] }
   | { tipo: "estructura" };
 
@@ -358,6 +359,9 @@ export default function App() {
       if (creada) setHistorial((h) => [...h, { tipo: "crear", pagina, id: creada!.id }]);
       setCambios(true);
       await recargar(pagina);
+      // lo recién dibujado o el recuadro quedan elegidos: se ven el marco, la manija para moverlo y Borrar,
+      // pero la herramienta sigue activa para seguir dibujando
+      if (creada && (accion.tipo === "dibujar" || accion.tipo === "recuadro")) setSeleccion({ pagina, id: creada.id });
     } catch (e) {
       console.error(e);
     }
@@ -372,14 +376,20 @@ export default function App() {
     });
   }
 
-  async function terminarTexto(texto: string | null) {
+  async function terminarTexto(texto: string | null, dx = 0, dy = 0) {
     const t = textoAbierto;
     setTextoAbierto(null);
+    const movido = Math.abs(dx) + Math.abs(dy) > 0.5;
     if (t && t.id !== undefined) {
-      // editar un texto que ya estaba
-      if (texto === null || texto === t.inicial) return;
+      // editar un texto que ya estaba (y quizás moverlo con la manija)
+      if (texto === null || (texto === t.inicial && !movido)) return;
       const previo = anots[t.pagina]?.find((x) => x.id === t.id);
       try {
+        if (movido && texto.trim()) {
+          await motor.mover(t.pagina, t.id, dx, dy);
+          setHistorial((h) => [...h, { tipo: "mover", pagina: t.pagina, id: t.id!, dx, dy }]);
+        }
+        if (texto === t.inicial) { setCambios(true); await recargar(t.pagina); return; }
         if (!texto.trim()) {
           await motor.borrar(t.pagina, t.id);
           if (previo) setHistorial((h) => [...h, { tipo: "textoBorrado", pagina: t.pagina, r: previo.r, texto: t.inicial ?? "", tam: t.tam ?? tamTexto, color: t.colorRgb ?? [0, 0, 0] }]);
@@ -394,7 +404,7 @@ export default function App() {
       return;
     }
     if (!t || !texto) return;
-    const creada = await motor.texto(t.pagina, t.x, t.y - tamTexto * 0.3, texto, tamTexto, color.rgb);
+    const creada = await motor.texto(t.pagina, t.x + dx, t.y + dy - tamTexto * 0.3, texto, tamTexto, color.rgb);
     setHistorial((h) => [...h, { tipo: "crear", pagina: t.pagina, id: creada.id }]);
     setCambios(true);
     await recargar(t.pagina);
@@ -421,6 +431,7 @@ export default function App() {
       if (paso.tipo === "mover") await motor.mover(paso.pagina, paso.id, -paso.dx, -paso.dy);
       if (paso.tipo === "ajustar") await motor.ajustar(paso.pagina, paso.id, paso.r);
       if (paso.tipo === "texto") await motor.editarTexto(paso.pagina, paso.id, paso.previo);
+      if (paso.tipo === "estiloTexto") await motor.estiloTexto(paso.pagina, paso.id, paso.tam, paso.color);
       if (paso.tipo === "textoBorrado") await motor.texto(paso.pagina, paso.r[0], paso.r[1], paso.texto, paso.tam, paso.color);
     } catch { /* la anotación ya no existe */ }
     setSeleccion(null);
@@ -799,6 +810,19 @@ export default function App() {
     () => (seleccion ? anots[seleccion.pagina]?.find((a) => a.id === seleccion.id) : null),
     [seleccion, anots],
   );
+  // con un texto elegido, el tamaño y los colores de la barra se le aplican a ese texto
+  const textoSel = selAnot?.tipo === "FreeText" ? selAnot : null;
+  async function cambiarEstiloTexto(c: { tam?: number; color?: number[] }) {
+    if (!textoSel || !seleccion || bloqueado()) return;
+    const previo = { tam: textoSel.tam ?? tamTexto, color: textoSel.color ?? [0, 0, 0] };
+    try {
+      await motor.estiloTexto(seleccion.pagina, textoSel.id, c.tam, c.color);
+      setHistorial((h) => [...h, { tipo: "estiloTexto", pagina: seleccion.pagina, id: textoSel.id, ...previo }]);
+      setCambios(true);
+      await recargar(seleccion.pagina);
+    } catch (e) { console.error(e); }
+  }
+  const mismoColor = (a?: number[], b?: number[]) => !!a && !!b && a.slice(0, 3).every((v, i) => Math.abs(v - b[i]) < 0.03);
 
   return (
     <div
@@ -860,13 +884,13 @@ export default function App() {
               {IDIOMAS.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
             </select>
           </label>
-          <button className="boton boton--suave" onClick={() => setPanel({ inicial: null })} title={T("Herramientas")}>
+          <button className="boton boton--suave" onClick={() => setPanel({ inicial: null })} title={T("Herramientas")} aria-label={T("Herramientas")}>
             <LayoutGrid size={18} aria-hidden /> <span>{T("Herramientas")}</span>
           </button>
-          <button className="boton boton--suave" onClick={() => abrirConDialogo().then(cargar)}>
+          <button className="boton boton--suave" onClick={() => abrirConDialogo().then(cargar)} title={T("Abrir")} aria-label={T("Abrir")}>
             <FolderOpen size={18} aria-hidden /> <span>{T("Abrir")}</span>
           </button>
-          <button className="boton boton--primario" onClick={() => guardar()} disabled={!doc || ocupado}>
+          <button className="boton boton--primario" onClick={() => guardar()} disabled={!doc || ocupado} title={T("Guardar")} aria-label={T("Guardar")}>
             <Save size={18} aria-hidden /> <span>{T("Guardar")}</span>
           </button>
         </div>
@@ -968,25 +992,33 @@ export default function App() {
           </Carril>
           <div className="herramientas__grupo herramientas__extra">
             <div className="herramientas__opciones">
-            {CON_COLOR.has(herramienta) && (
+            {(herramienta === "texto" || textoSel) && (() => {
+              const valor = textoSel ? Math.round(textoSel.tam ?? tamTexto) : tamTexto;
+              const opciones = [...new Set([10, 12, 14, 18, 24, 32, valor])].sort((a, b) => a - b);
+              return (
+                <select className="tam" value={valor} aria-label={T("Tamaño")} title={T("Tamaño")}
+                  onChange={(e) => { const n = Number(e.target.value); setTamTexto(n); if (textoSel) cambiarEstiloTexto({ tam: n }); }}>
+                  {opciones.map((n) => <option key={n} value={n}>{n} pt</option>)}
+                </select>
+              );
+            })()}
+            {(CON_COLOR.has(herramienta) || textoSel) && (
               <div className="colores" role="radiogroup" aria-label={T("Color")}>
-                {COLORES.filter((c) => herramienta !== "texto" || c.id !== "amarillo").map((c) => (
-                  <button
-                    key={c.id}
-                    role="radio"
-                    aria-checked={color.id === c.id}
-                    aria-label={c.id}
-                    className={"color" + (color.id === c.id ? " color--activo" : "")}
-                    style={{ background: c.css }}
-                    onClick={() => setColor(c)}
-                  />
-                ))}
+                {COLORES.filter((c) => (herramienta !== "texto" && !textoSel) || c.id !== "amarillo").map((c) => {
+                  const activo = textoSel ? mismoColor(textoSel.color, c.rgb) : color.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      role="radio"
+                      aria-checked={activo}
+                      aria-label={c.id}
+                      className={"color" + (activo ? " color--activo" : "")}
+                      style={{ background: c.css }}
+                      onClick={() => { setColor(c); if (textoSel) cambiarEstiloTexto({ color: c.rgb }); }}
+                    />
+                  );
+                })}
               </div>
-            )}
-            {herramienta === "texto" && (
-              <select className="tam" value={tamTexto} onChange={(e) => setTamTexto(Number(e.target.value))} aria-label={T("Tamaño")}>
-                {[10, 12, 14, 18, 24, 32].map((n) => <option key={n} value={n}>{n} pt</option>)}
-              </select>
             )}
             {herramienta === "firma" && firma && (
               <button className="chip-firma" onClick={() => setModalFirma(true)} title={T("Cambiar firma")}>
@@ -1000,16 +1032,17 @@ export default function App() {
             )}
             </div>
             <div className="herramientas__vista">
-            <button className="icono" onClick={() => setAjustando(true)} title={T("Ajustar páginas")} aria-label={T("Ajustar páginas")}>
+            {/* en el celular: el zoom es con dos dedos y "Ajustar páginas" está en el menú Páginas */}
+            <button className="icono solo-compu" onClick={() => setAjustando(true)} title={T("Ajustar páginas")} aria-label={T("Ajustar páginas")}>
               <Scaling size={18} />
             </button>
             <button className="icono" onClick={deshacer} disabled={!historial.length} title={T("Deshacer")} aria-label={T("Deshacer")}>
               <Undo2 size={18} />
             </button>
-            <span className="separador" />
-            <button className="icono" onClick={() => setZoom((z) => Math.max(z / 1.2, 0.2))} title={T("Alejar")} aria-label={T("Alejar")}><ZoomOut size={18} /></button>
-            <span className="zoom">{Math.round(zoom * 100)}%</span>
-            <button className="icono" onClick={() => setZoom((z) => Math.min(z * 1.2, 5))} title={T("Acercar")} aria-label={T("Acercar")}><ZoomIn size={18} /></button>
+            <span className="separador solo-compu" />
+            <button className="icono solo-compu" onClick={() => setZoom((z) => Math.max(z / 1.2, 0.2))} title={T("Alejar")} aria-label={T("Alejar")}><ZoomOut size={18} /></button>
+            <span className="zoom solo-compu">{Math.round(zoom * 100)}%</span>
+            <button className="icono solo-compu" onClick={() => setZoom((z) => Math.min(z * 1.2, 5))} title={T("Acercar")} aria-label={T("Acercar")}><ZoomIn size={18} /></button>
             <button className="icono" onClick={() => ajustarAncho(doc, false)} title={T("Ajustar al ancho")} aria-label={T("Ajustar al ancho")}><MoveHorizontal size={18} /></button>
             </div>
           </div>

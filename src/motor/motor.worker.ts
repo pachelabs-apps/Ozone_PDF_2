@@ -207,6 +207,20 @@ const ops: Record<string, (a: any) => any> = {
     return etiqueta(a);
   },
 
+  // Cambia el tamaño o el color de una nota de texto ya puesta; el cuadro se ajusta al tamaño nuevo.
+  estiloTexto({ pagina, id, tam, color }: { pagina: number; id: number; tam?: number; color?: number[] }) {
+    const { a } = buscar(pagina, id);
+    let da = { size: 12, color: [0, 0, 0] as number[] };
+    try { const d = a.getDefaultAppearance(); da = { size: d.size || 12, color: (d.color as number[]) || [0, 0, 0] }; } catch { /* sin apariencia */ }
+    const t = tam ?? da.size, c = color ?? da.color;
+    a.setDefaultAppearance("Helv", t, c as mupdf.AnnotColor);
+    const r = a.getRect();
+    const { w, h } = medidaTexto(a.getContents(), t);
+    a.setRect([r[0], r[1], r[0] + w, r[1] + h]);
+    a.update();
+    return etiqueta(a);
+  },
+
   rectangulo({ pagina, r, color }: { pagina: number; r: Rect; color: number[] }) {
     const p = documento().loadPage(pagina);
     const an = p.createAnnotation("Square");
