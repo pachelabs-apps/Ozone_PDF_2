@@ -2362,7 +2362,7 @@ dependencies = [
 
 [[package]]
 name = "ozone-pdf"
-version = "2.1.5"
+version = "2.1.6"
 dependencies = [
  "serde",
  "serde_json",
